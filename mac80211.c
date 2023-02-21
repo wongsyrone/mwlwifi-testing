@@ -294,8 +294,8 @@ static int mwl_mac80211_config(struct ieee80211_hw *hw,
 {
 	struct ieee80211_conf *conf = &hw->conf;
 	int rc;
+		wiphy_debug(hw->wiphy, "mwl_mac80211_config change: 0x%x\n", changed);
 
-	wiphy_debug(hw->wiphy, "change: 0x%x\n", changed);
 
 	if (conf->flags & IEEE80211_CONF_IDLE)
 		rc = mwl_fwcmd_radio_disable(hw);
@@ -305,7 +305,33 @@ static int mwl_mac80211_config(struct ieee80211_hw *hw,
 	if (rc)
 		goto out;
 
+	if (changed & IEEE80211_CONF_CHANGE_SMPS)
+		wiphy_debug(hw->wiphy, "IEEE80211_CONF_CHANGE_SMPS\n");
+	if (changed & IEEE80211_CONF_CHANGE_LISTEN_INTERVAL)
+		wiphy_debug(hw->wiphy, "IEEE80211_CONF_CHANGE_LISTEN_INTERVAL\n");
+	if (changed & IEEE80211_CONF_CHANGE_MONITOR)
+		wiphy_debug(hw->wiphy, "IEEE80211_CONF_CHANGE_MONITOR\n");
+	if (changed & IEEE80211_CONF_CHANGE_PS)
+		wiphy_debug(hw->wiphy, "IEEE80211_CONF_CHANGE_PS\n");
+	if (changed & IEEE80211_CONF_CHANGE_POWER) {
+		wiphy_debug(hw->wiphy, "IEEE80211_CONF_CHANGE_POWER: %d\n", conf->power_level);
+		if(conf->chandef.chan->band == NL80211_BAND_5GHZ)
+			rc = mwl_fwcmd_max_tx_power(hw, conf, 26);
+		if(conf->chandef.chan->band == NL80211_BAND_2GHZ)
+			rc = mwl_fwcmd_max_tx_power(hw, conf, 26);
+
+		if (rc)
+			goto out;
+		rc = mwl_fwcmd_tx_power(hw, conf, conf->power_level);
+		if (rc)
+			goto out;
+		rc = mwl_fwcmd_set_cdd(hw);
+	}
+	if (changed & IEEE80211_CONF_CHANGE_RETRY_LIMITS)
+		wiphy_debug(hw->wiphy, "IEEE80211_CONF_CHANGE_RETRY_LIMITS\n");
+
 	if (changed & IEEE80211_CONF_CHANGE_CHANNEL) {
+		wiphy_debug(hw->wiphy, "IEEE80211_CONF_CHANGE_CHANNEL\n");
 		int rate = 0;
 
 		if (conf->chandef.chan->band == NL80211_BAND_2GHZ) {
@@ -330,15 +356,6 @@ static int mwl_mac80211_config(struct ieee80211_hw *hw,
 		if (rc)
 			goto out;
 		rc = mwl_fwcmd_use_fixed_rate(hw, rate, rate);
-		if (rc)
-			goto out;
-		rc = mwl_fwcmd_max_tx_power(hw, conf, 0);
-		if (rc)
-			goto out;
-		rc = mwl_fwcmd_tx_power(hw, conf, 0);
-		if (rc)
-			goto out;
-		rc = mwl_fwcmd_set_cdd(hw);
 	}
 
 out:

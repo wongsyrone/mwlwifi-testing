@@ -237,6 +237,7 @@ struct mwl_priv {
 	bool disable_5g;
 	int antenna_tx;
 	int antenna_rx;
+	bool debug_mac80211;
 	bool tx_amsdu;
 	bool dump_hostcmd;
 	bool dump_probe;

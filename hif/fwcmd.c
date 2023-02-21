@@ -1144,24 +1144,84 @@ int mwl_fwcmd_max_tx_power(struct ieee80211_hw *hw,
 	int i, tmp;
 	int rc = 0;
 
-	if ((priv->chip_type != MWL8997) && (priv->forbidden_setting))
-		return rc;
-
 	switch (fraction) {
-	case 0:
+	case 26:
 		reduce_val = 0;    /* Max */
 		break;
-	case 1:
+	case 25:
+		reduce_val = 1;
+		break;
+	case 24:
 		reduce_val = 2;    /* 75% -1.25db */
 		break;
-	case 2:
+	case 23:
 		reduce_val = 3;    /* 50% -3db */
 		break;
-	case 3:
+	case 22:
+		reduce_val = 4;
+		break;
+	case 21:
+		reduce_val = 5;
+		break;
+	case 20:
 		reduce_val = 6;    /* 25% -6db */
 		break;
+	case 19:
+		reduce_val = 7;
+		break;
+	case 18:
+		reduce_val = 8;
+		break;
+	case 17:
+		reduce_val = 9;
+		break;
+	case 16:
+		reduce_val = 0xa;
+		break;
+	case 15:
+		reduce_val = 0xb;
+		break;
+	case 14:
+		reduce_val = 0xc;
+		break;
+	case 13:
+		reduce_val = 0xd;
+		break;
+	case 12:
+		reduce_val = 0xe;
+		break;
+	case 11:
+		reduce_val = 0xf;
+		break;
+	case 10:
+		reduce_val = 0x10;
+		break;
+	case 9:
+		reduce_val = 0x11;
+		break;
+	case 8:
+		reduce_val = 0x12;
+		break;
+	case 7:
+		reduce_val = 0x13;
+		break;
+	case 6:
+		reduce_val = 0x14;
+		break;
+	case 5:
+		reduce_val = 0x15;
+		break;
+	case 4:
+		reduce_val = 0x16;
+		break;
+	case 3:
+		reduce_val = 0x17;
+		break;
+	case 2:
+		reduce_val = 0x18;
+		break;
 	default:
-		/* larger than case 3,  pCmd->MaxPowerLevel is min */
+		/* pCmd->MaxPowerLevel is min */
 		reduce_val = 0xff;
 		break;
 	}
@@ -1232,7 +1292,8 @@ int mwl_fwcmd_max_tx_power(struct ieee80211_hw *hw,
 			tmp = priv->max_tx_pow[i];
 		else
 			tmp = priv->target_powers[i];
-		maxtxpow[i] = ((tmp - reduce_val) > 0) ? (tmp - reduce_val) : 0;
+		wiphy_debug(hw->wiphy,"mwl_fwcmd_max_tx_power priv->target_powers[%d](%d) > priv->max_tx_pow[%i](%d), tmp=%d\n", i, priv->target_powers[i],i, priv->max_tx_pow[i],tmp);
+		maxtxpow[i] = tmp;
 	}
 
 	rc = mwl_fwcmd_set_tx_powers(priv, maxtxpow, HOSTCMD_ACT_GEN_SET,
@@ -1253,24 +1314,84 @@ int mwl_fwcmd_tx_power(struct ieee80211_hw *hw,
 	int i, tmp;
 	int rc = 0;
 
-	if ((priv->chip_type != MWL8997) && (priv->forbidden_setting))
-		return rc;
-
 	switch (fraction) {
-	case 0:
+	case 26:
 		reduce_val = 0;    /* Max */
 		break;
-	case 1:
+	case 25:
+		reduce_val = 1;
+		break;
+	case 24:
 		reduce_val = 2;    /* 75% -1.25db */
 		break;
-	case 2:
+	case 23:
 		reduce_val = 3;    /* 50% -3db */
 		break;
-	case 3:
+	case 22:
+		reduce_val = 4;
+		break;
+	case 21:
+		reduce_val = 5;
+		break;
+	case 20:
 		reduce_val = 6;    /* 25% -6db */
 		break;
+	case 19:
+		reduce_val = 7;
+		break;
+	case 18:
+		reduce_val = 8;
+		break;
+	case 17:
+		reduce_val = 9;
+		break;
+	case 16:
+		reduce_val = 0xa;
+		break;
+	case 15:
+		reduce_val = 0xb;
+		break;
+	case 14:
+		reduce_val = 0xc;
+		break;
+	case 13:
+		reduce_val = 0xd;
+		break;
+	case 12:
+		reduce_val = 0xe;
+		break;
+	case 11:
+		reduce_val = 0xf;
+		break;
+	case 10:
+		reduce_val = 0x10;
+		break;
+	case 9:
+		reduce_val = 0x11;
+		break;
+	case 8:
+		reduce_val = 0x12;
+		break;
+	case 7:
+		reduce_val = 0x13;
+		break;
+	case 6:
+		reduce_val = 0x14;
+		break;
+	case 5:
+		reduce_val = 0x15;
+		break;
+	case 4:
+		reduce_val = 0x16;
+		break;
+	case 3:
+		reduce_val = 0x17;
+		break;
+	case 2:
+		reduce_val = 0x18;
+		break;
 	default:
-		/* larger than case 3,  pCmd->MaxPowerLevel is min */
+		/* pCmd->MaxPowerLevel is min */
 		reduce_val = 0xff;
 		break;
 	}
@@ -1386,8 +1507,9 @@ int mwl_fwcmd_tx_power(struct ieee80211_hw *hw,
 			else
 				tmp = priv->target_powers[i];
 		}
+		wiphy_debug(hw->wiphy,"mwl_fwcmd_max_tx_power priv->target_powers[%d](%d) > priv->max_tx_pow[%i](%d), tmp=%d\n", i, priv->target_powers[i],i, priv->max_tx_pow[i],tmp);
 
-		txpow[i] = ((tmp - reduce_val) > 0) ? (tmp - reduce_val) : 0;
+		txpow[i] = tmp;
 	}
 
 	rc = mwl_fwcmd_set_tx_powers(priv, txpow, HOSTCMD_ACT_GEN_SET_LIST,

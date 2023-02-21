@@ -1010,6 +1010,11 @@ struct ieee80211_hw *mwl_alloc_hw(int bus_type,
 	priv->ra_aid = 1;
 	priv->ba_aid = 1;
 	priv->level_threshold = 0;
+	priv->debug_txpower = true;
+	priv->debug_ampdu = true;
+	priv->debug_xmit_scheduler = false;
+	priv->debug_tx_skb = false;
+	priv->debug_tx_done = false;
 	priv->tx_amsdu = true;
 	priv->hif.bus = bus_type;
 	priv->hif.ops = ops;

@@ -88,9 +88,6 @@ int mwl_fwcmd_set_radio_preamble(struct ieee80211_hw *hw,
 int mwl_fwcmd_get_addr_value(struct ieee80211_hw *hw, u32 addr, u32 len,
 			     u32 *val, u16 set);
 
-int mwl_fwcmd_max_tx_power(struct ieee80211_hw *hw,
-			   struct ieee80211_conf *conf, u8 fraction);
-
 int mwl_fwcmd_tx_power(struct ieee80211_hw *hw,
 		       struct ieee80211_conf *conf, u8 fraction);
 

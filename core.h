@@ -237,6 +237,11 @@ struct mwl_priv {
 	bool disable_5g;
 	int antenna_tx;
 	int antenna_rx;
+	bool debug_xmit_scheduler;
+	bool debug_tx_done;
+	bool debug_tx_skb;
+	bool debug_txpower;
+	bool debug_ampdu;
 	bool tx_amsdu;
 	bool dump_hostcmd;
 	bool dump_probe;

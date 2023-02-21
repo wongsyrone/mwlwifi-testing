@@ -357,6 +357,10 @@ struct mwl_priv {
 
 	bool debug_ampdu;
 	bool debug_rx;
+	bool debug_xmit_scheduler;
+	bool debug_tx_skb;
+	bool debug_tx_done;
+	bool debug_txpower;
 };
 
 struct beacon_info {

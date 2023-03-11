@@ -503,6 +503,21 @@ static inline void pcie_tx_skb(struct mwl_priv *priv, int desc_num,
 }
 
 static inline
+void pcie_tx_xmit_scheduler(struct mwl_priv *priv,
+			    int desc_num,
+			    struct sk_buff *skb)
+{
+	struct pcie_priv *pcie_priv = priv->hif.priv;
+
+	if (skb_queue_len(&pcie_priv->txq[desc_num]) > pcie_priv->txq_limit)
+		ieee80211_stop_queue(priv->hw, SYSADPT_TX_WMM_QUEUES - desc_num - 1);
+
+	skb_queue_tail(&pcie_priv->txq[desc_num], skb);
+
+	tasklet_schedule(&pcie_priv->tx_task);
+}
+
+static inline
 struct sk_buff *pcie_tx_do_amsdu(struct mwl_priv *priv,
 				 int desc_num,
 				 struct sk_buff *tx_skb,
@@ -548,7 +563,7 @@ struct sk_buff *pcie_tx_do_amsdu(struct mwl_priv *priv,
 	if ((tx_skb->len > SYSADPT_AMSDU_ALLOW_SIZE) ||
 	    utils_is_non_amsdu_packet(tx_skb->data, true)) {
 		if (amsdu->num) {
-			pcie_tx_skb(priv, desc_num, amsdu->skb);
+			pcie_tx_xmit_scheduler(priv, desc_num, amsdu->skb);
 			amsdu->num = 0;
 		}
 		spin_unlock_bh(&sta_info->amsdu_lock);
@@ -853,21 +868,12 @@ void pcie_tx_skbs(unsigned long data)
 	spin_lock_bh(&pcie_priv->tx_desc_lock);
 	while (num--) {
 		while (skb_queue_len(&pcie_priv->txq[num]) > 0) {
-			struct ieee80211_tx_info *tx_info;
-			struct pcie_tx_ctrl *tx_ctrl;
-
 			if (!pcie_tx_available(priv, num))
 				break;
 
 			tx_skb = skb_dequeue(&pcie_priv->txq[num]);
 			if (!tx_skb)
 				continue;
-			tx_info = IEEE80211_SKB_CB(tx_skb);
-			tx_ctrl = (struct pcie_tx_ctrl *)tx_info->driver_data;
-
-			if (tx_ctrl->tx_priority >= SYSADPT_TX_WMM_QUEUES)
-				tx_skb = pcie_tx_do_amsdu(priv, num,
-							  tx_skb, tx_info);
 
 			if (tx_skb) {
 				if (pcie_tx_available(priv, num))
@@ -941,7 +947,6 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 		  struct sk_buff *skb)
 {
 	struct mwl_priv *priv = hw->priv;
-	struct pcie_priv *pcie_priv = priv->hif.priv;
 	int index;
 	struct ieee80211_sta *sta;
 	struct ieee80211_tx_info *tx_info;
@@ -993,12 +998,6 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 				}
 			}
 		}
-	}
-
-	if (tx_info->flags & IEEE80211_TX_CTL_ASSIGN_SEQ) {
-		wh->seq_ctrl &= cpu_to_le16(IEEE80211_SCTL_FRAG);
-		wh->seq_ctrl |= cpu_to_le16(mwl_vif->seqno);
-		mwl_vif->seqno += 0x10;
 	}
 
 	/* Setup firmware control bit fields for each frame type. */
@@ -1069,6 +1068,22 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 				txpriority =
 					(SYSADPT_TX_WMM_QUEUES + stream->idx) %
 					TOTAL_HW_QUEUES;
+
+
+				if (txpriority >= SYSADPT_TX_WMM_QUEUES) {
+					spin_unlock_bh(&priv->stream_lock);
+					tx_ctrl = (struct pcie_tx_ctrl *)tx_info->driver_data;
+					tx_ctrl->sta = (void *)sta;
+					tx_ctrl->tx_priority = txpriority;
+					tx_ctrl->type = (mgmtframe ? IEEE_TYPE_MANAGEMENT : IEEE_TYPE_DATA);
+					tx_ctrl->qos_ctrl = qos;
+					tx_ctrl->xmit_control = xmitcontrol;
+					skb = pcie_tx_do_amsdu(priv, index, skb, tx_info);
+					if (skb)
+						pcie_tx_xmit_scheduler(priv, index, skb);
+					return;
+				}
+
 			} else if (stream->state == AMPDU_STREAM_NEW) {
 				/* We get here if the driver sends us packets
 				 * after we've initiated a stream, but before
@@ -1118,12 +1133,19 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 	tx_ctrl->qos_ctrl = qos;
 	tx_ctrl->xmit_control = xmitcontrol;
 
-	if (skb_queue_len(&pcie_priv->txq[index]) > pcie_priv->txq_limit)
-		ieee80211_stop_queue(hw, SYSADPT_TX_WMM_QUEUES - index - 1);
+	if (tx_info->flags  & IEEE80211_TX_CTL_ASSIGN_SEQ) {
+		wh->seq_ctrl &= cpu_to_le16(IEEE80211_SCTL_FRAG);
+		wh->seq_ctrl |= cpu_to_le16(mwl_vif->seqno);
 
-	skb_queue_tail(&pcie_priv->txq[index], skb);
+		if (mwl_vif->seqno == 0)
+			mwl_vif->seqno = 0x1000;
 
-	tasklet_schedule(&pcie_priv->tx_task);
+		if (tx_info->flags & IEEE80211_TX_CTL_FIRST_FRAGMENT)
+				mwl_vif->seqno += 0x10;
+	}
+
+	pcie_tx_xmit_scheduler(priv, index, skb);
+
 
 	/* Initiate the ampdu session here */
 	if (start_ba_session) {

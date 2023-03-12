@@ -752,6 +752,9 @@ static inline void pcie_tx_add_dma_header(struct mwl_priv *priv,
 
 	hdrlen = ieee80211_hdrlen(wh->frame_control);
 
+	if (ieee80211_is_data_qos(wh->frame_control))
+		hdrlen -= IEEE80211_QOS_CTL_LEN;
+
 	reqd_hdrlen = dma_hdrlen + head_pad;
 
 	if (hdrlen != reqd_hdrlen) {
@@ -764,13 +767,19 @@ static inline void pcie_tx_add_dma_header(struct mwl_priv *priv,
 		skb_push(skb, needed_room);
 	}
 
-	if (ieee80211_is_data_qos(wh->frame_control))
-		hdrlen -= IEEE80211_QOS_CTL_LEN;
 
 	if (priv->chip_type == MWL8997)
 		dma_data = &((struct pcie_pfu_dma_data *)skb->data)->dma_data;
 	else
 		dma_data = (struct pcie_dma_data *)skb->data;
+
+
+	if (ieee80211_is_data_qos(wh->frame_control)) {
+		memmove(dma_data->data + IEEE80211_QOS_CTL_LEN,
+			&dma_data->wh, hdrlen);
+
+		dma_data = dma_data + IEEE80211_QOS_CTL_LEN;
+	}
 
 	if (wh != &dma_data->wh)
 		memmove(&dma_data->wh, wh, hdrlen);

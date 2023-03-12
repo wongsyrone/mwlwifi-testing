@@ -50,6 +50,7 @@
 /* Transmission information to transmit a socket buffer. */
 struct pcie_tx_ctrl {
 	void *sta;
+	void *amsdu_pkts;
 	u8 tx_priority;
 	u8 type;
 	u16 qos_ctrl;
@@ -542,6 +543,7 @@ struct sk_buff *pcie_tx_do_amsdu(struct mwl_priv *priv,
 	struct mwl_sta *sta_info;
 	struct pcie_tx_ctrl *tx_ctrl = (struct pcie_tx_ctrl *)tx_info->driver_data;
 	struct ieee80211_tx_info *amsdu_info;
+	struct sk_buff_head *amsdu_pkts;
 	struct mwl_amsdu_frag *amsdu;
 	int amsdu_allow_size;
 	struct ieee80211_hdr *wh;
@@ -601,6 +603,18 @@ struct sk_buff *pcie_tx_do_amsdu(struct mwl_priv *priv,
 	len = tx_skb->len - wh_len;
 
 	if (amsdu->num == 0) {
+		spin_lock_bh(&sta_info->ampdu_lock);
+		amsdu_pkts = &sta_info->ampdu_ctrl.queues[desc_num];
+		if(!amsdu_pkts){
+			/* TODO: stock amsdu_pkts*/
+			amsdu_pkts = (struct sk_buff_head *)
+				kmalloc(sizeof(*amsdu_pkts), GFP_ATOMIC);
+			if (!amsdu_pkts) {
+				skb_queue_head_init(amsdu_pkts);
+			}
+		}
+		spin_unlock_bh(&sta_info->ampdu_lock);
+
 		newskb = dev_alloc_skb(amsdu_allow_size +
 				       pcie_priv->tx_head_room);
 		if (!newskb) {
@@ -645,13 +659,35 @@ struct sk_buff *pcie_tx_do_amsdu(struct mwl_priv *priv,
 	if (amsdu->num > SYSADPT_AMSDU_FRAGMENT_THRESHOLD) {
 		amsdu->num = 0;
 		spin_unlock_bh(&sta_info->amsdu_lock);
-		return amsdu->skb;
+		if(amsdu_pkts)
+			skb_queue_tail(amsdu_pkts, amsdu->skb);
+		else
+			return amsdu->skb;
+	}
+	spin_unlock_bh(&sta_info->amsdu_lock);
+	spin_lock_bh(&sta_info->ampdu_lock);
+	if (skb_queue_len(amsdu_pkts) > SYSADPT_AMSDU_PACKET_THRESHOLD) {
+		amsdu_pkts
 	}
 
-	spin_unlock_bh(&sta_info->amsdu_lock);
 	return NULL;
 }
 
+static inline void pcie_tx_ack_amsdu_pkts(struct ieee80211_hw *hw, u32 rate,
+					  struct sk_buff_head *amsdu_pkts)
+{
+	struct sk_buff *amsdu_pkt;
+	struct ieee80211_tx_info *info;
+
+	while (skb_queue_len(amsdu_pkts) > 0) {
+		amsdu_pkt = skb_dequeue(amsdu_pkts);
+		info = IEEE80211_SKB_CB(amsdu_pkt);
+		pcie_tx_prepare_info(hw->priv, rate, info);
+		ieee80211_tx_status(hw, amsdu_pkt);
+	}
+
+	kfree(amsdu_pkts);
+}
 
 static void pcie_pfu_tx_done(struct mwl_priv *priv)
 {
@@ -669,6 +705,7 @@ static void pcie_pfu_tx_done(struct mwl_priv *priv)
 	struct ieee80211_sta *sta;
 	struct mwl_sta *sta_info;
 	u32 rate = 0;
+	struct sk_buff_head *amsdu_pkts;
 	int hdrlen;
 
 	spin_lock_bh(&pcie_priv->tx_desc_lock);
@@ -715,7 +752,16 @@ static void pcie_pfu_tx_done(struct mwl_priv *priv)
 
 			if (ieee80211_is_data(wh->frame_control) ||
 			    ieee80211_is_data_qos(wh->frame_control)) {
+				amsdu_pkts = (struct sk_buff_head *)
+					tx_ctrl->amsdu_pkts;
+				if (amsdu_pkts) {
+					pcie_tx_ack_amsdu_pkts(priv->hw, rate,
+							       amsdu_pkts);
+					dev_kfree_skb_any(done_skb);
+					done_skb = NULL;
+				} else {
 					pcie_tx_prepare_info(priv, rate, info);
+				}
 			} else {
 				pcie_tx_prepare_info(priv, 0, info);
 			}
@@ -762,6 +808,8 @@ static void pcie_non_pfu_tx_done(struct mwl_priv *priv)
 	struct pcie_dma_data *dma_data;
 	struct ieee80211_hdr *wh;
 	struct ieee80211_tx_info *info;
+	struct pcie_tx_ctrl *tx_ctrl;
+	struct sk_buff_head *amsdu_pkts;
 	int hdrlen;
 
 	spin_lock_bh(&pcie_priv->tx_desc_lock);
@@ -813,7 +861,17 @@ static void pcie_non_pfu_tx_done(struct mwl_priv *priv)
 
 			info = IEEE80211_SKB_CB(done_skb);
 			if (ieee80211_is_data(wh->frame_control)) {
-				pcie_tx_prepare_info(priv, rate, info);
+				tx_ctrl = (struct pcie_tx_ctrl *)info->driver_data;
+				amsdu_pkts = (struct sk_buff_head *)
+					tx_ctrl->amsdu_pkts;
+				if (amsdu_pkts) {
+					pcie_tx_ack_amsdu_pkts(priv->hw, rate,
+							       amsdu_pkts);
+					dev_kfree_skb_any(done_skb);
+					done_skb = NULL;
+				} else {
+					pcie_tx_prepare_info(priv, rate, info);
+				}
 			} else {
 				pcie_tx_prepare_info(priv, 0, info);
 			}
@@ -1164,6 +1222,7 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 
 	tx_ctrl = (struct pcie_tx_ctrl *)tx_info->driver_data;
 	tx_ctrl->sta = (void *)sta;
+	tx_ctrl->amsdu_pkts = NULL;
 	tx_ctrl->tx_priority = txpriority;
 	tx_ctrl->type = (mgmtframe ? IEEE_TYPE_MANAGEMENT : IEEE_TYPE_DATA);
 	tx_ctrl->qos_ctrl = qos;
@@ -1193,6 +1252,7 @@ void pcie_tx_del_pkts_via_vif(struct ieee80211_hw *hw,
 	struct sk_buff *skb, *tmp;
 	struct ieee80211_tx_info *tx_info;
 	struct pcie_tx_ctrl *tx_ctrl;
+	struct sk_buff_head *amsdu_pkts;
 	unsigned long flags;
 
 	for (num = 1; num < PCIE_NUM_OF_DESC_DATA; num++) {
@@ -1201,6 +1261,12 @@ void pcie_tx_del_pkts_via_vif(struct ieee80211_hw *hw,
 			tx_info = IEEE80211_SKB_CB(skb);
 			tx_ctrl = (struct pcie_tx_ctrl *)tx_info->driver_data;
 			if (tx_info->control.vif == vif) {
+				amsdu_pkts = (struct sk_buff_head *)
+					tx_ctrl->amsdu_pkts;
+				if (amsdu_pkts) {
+					skb_queue_purge(amsdu_pkts);
+					kfree(amsdu_pkts);
+				}
 				__skb_unlink(skb, &pcie_priv->txq[num]);
 				dev_kfree_skb_any(skb);
 			}
@@ -1218,6 +1284,7 @@ void pcie_tx_del_pkts_via_sta(struct ieee80211_hw *hw,
 	struct sk_buff *skb, *tmp;
 	struct ieee80211_tx_info *tx_info;
 	struct pcie_tx_ctrl *tx_ctrl;
+	struct sk_buff_head *amsdu_pkts;
 	unsigned long flags;
 
 	for (num = 1; num < PCIE_NUM_OF_DESC_DATA; num++) {
@@ -1226,6 +1293,12 @@ void pcie_tx_del_pkts_via_sta(struct ieee80211_hw *hw,
 			tx_info = IEEE80211_SKB_CB(skb);
 			tx_ctrl = (struct pcie_tx_ctrl *)tx_info->driver_data;
 			if (tx_ctrl->sta == sta) {
+				amsdu_pkts = (struct sk_buff_head *)
+					tx_ctrl->amsdu_pkts;
+				if (amsdu_pkts) {
+					skb_queue_purge(amsdu_pkts);
+					kfree(amsdu_pkts);
+				}
 				__skb_unlink(skb, &pcie_priv->txq[num]);
 				dev_kfree_skb_any(skb);
 			}
@@ -1239,10 +1312,13 @@ void pcie_tx_del_ampdu_pkts(struct ieee80211_hw *hw,
 {
 	struct mwl_priv *priv = hw->priv;
 	struct pcie_priv *pcie_priv = priv->hif.priv;
+	struct mwl_sta *sta_info = mwl_dev_get_sta(sta);
 	int ac, desc_num;
+	struct mwl_amsdu_frag *amsdu_frag;
 	struct sk_buff *skb, *tmp;
 	struct ieee80211_tx_info *tx_info;
 	struct pcie_tx_ctrl *tx_ctrl;
+	struct sk_buff_head *amsdu_pkts;
 	unsigned long flags;
 
 	ac = utils_tid_to_ac(tid);
@@ -1252,11 +1328,36 @@ void pcie_tx_del_ampdu_pkts(struct ieee80211_hw *hw,
 		tx_info = IEEE80211_SKB_CB(skb);
 		tx_ctrl = (struct pcie_tx_ctrl *)tx_info->driver_data;
 		if (tx_ctrl->sta == sta) {
+			amsdu_pkts = (struct sk_buff_head *)
+				tx_ctrl->amsdu_pkts;
+			if (amsdu_pkts) {
+				skb_queue_purge(amsdu_pkts);
+				kfree(amsdu_pkts);
+			}
 			__skb_unlink(skb, &pcie_priv->txq[desc_num]);
 			dev_kfree_skb_any(skb);
 		}
 	}
 	spin_unlock_irqrestore(&pcie_priv->txq[desc_num].lock, flags);
+
+	spin_lock_bh(&sta_info->amsdu_lock);
+	amsdu_frag = &sta_info->amsdu_ctrl.frag[desc_num];
+	if (amsdu_frag->num) {
+		amsdu_frag->num = 0;
+		amsdu_frag->cur_pos = NULL;
+		if (amsdu_frag->skb) {
+			tx_info = IEEE80211_SKB_CB(amsdu_frag->skb);
+			tx_ctrl = (struct pcie_tx_ctrl *)tx_info->driver_data;
+			amsdu_pkts = (struct sk_buff_head *)
+				tx_ctrl->amsdu_pkts;
+			if (amsdu_pkts) {
+				skb_queue_purge(amsdu_pkts);
+				kfree(amsdu_pkts);
+			}
+			dev_kfree_skb_any(amsdu_frag->skb);
+		}
+	}
+	spin_unlock_bh(&sta_info->amsdu_lock);
 }
 
 void pcie_tx_del_sta_amsdu_pkts(struct ieee80211_hw *hw,
@@ -1265,14 +1366,27 @@ void pcie_tx_del_sta_amsdu_pkts(struct ieee80211_hw *hw,
 	struct mwl_sta *sta_info = mwl_dev_get_sta(sta);
 	int num;
 	struct mwl_amsdu_frag *amsdu_frag;
+	struct ieee80211_tx_info *tx_info;
+	struct pcie_tx_ctrl *tx_ctrl;
+	struct sk_buff_head *amsdu_pkts;
 
 	spin_lock_bh(&sta_info->amsdu_lock);
 	for (num = 0; num < SYSADPT_TX_WMM_QUEUES; num++) {
 		amsdu_frag = &sta_info->amsdu_ctrl.frag[num];
 		if (amsdu_frag->num) {
 			amsdu_frag->num = 0;
-			if (amsdu_frag->skb)
+			if (amsdu_frag->skb) {
+				tx_info = IEEE80211_SKB_CB(amsdu_frag->skb);
+				tx_ctrl = (struct pcie_tx_ctrl *)
+					tx_info->driver_data;
+				amsdu_pkts = (struct sk_buff_head *)
+					tx_ctrl->amsdu_pkts;
+				if (amsdu_pkts) {
+					skb_queue_purge(amsdu_pkts);
+					kfree(amsdu_pkts);
+				}
 				dev_kfree_skb_any(amsdu_frag->skb);
+			}
 		}
 	}
 	spin_unlock_bh(&sta_info->amsdu_lock);

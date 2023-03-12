@@ -424,6 +424,16 @@ struct mwl_amsdu_ctrl {
 	u8 cap;
 };
 
+struct mwl_ampdu_queue {
+	struct sk_buff_head *queue;
+	unsigned long jiffies;
+};
+
+
+struct mwl_ampdu_ctrl {
+	struct mwl_ampdu_queue queues[SYSADPT_TX_WMM_QUEUES];
+};
+
 struct mwl_tx_ba_stats {
 	u8 ba_hole;     /* Total pkt not acked in a BA bitmap */
 	u8 ba_expected; /* Total Tx pkt expected to be acked  */
@@ -473,6 +483,11 @@ struct mwl_sta {
 	/* for amsdu aggregation */
 	struct {
 		spinlock_t amsdu_lock;   /* for amsdu */
+		struct mwl_amsdu_ctrl amsdu_ctrl;
+	} ____cacheline_aligned_in_smp;
+	/* for ampdu queueu */
+	struct {
+		spinlock_t ampdu_lock;   /* for amsdu */
 		struct mwl_amsdu_ctrl amsdu_ctrl;
 	} ____cacheline_aligned_in_smp;
 	struct mwl_tx_hist tx_hist;

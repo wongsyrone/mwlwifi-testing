@@ -43,7 +43,7 @@ static int pcie_rx_ring_alloc(struct mwl_priv *priv)
 	struct pcie_priv *pcie_priv = priv->hif.priv;
 	struct pcie_desc_data *desc;
 
-	desc = &pcie_priv->desc_data[0];
+	desc = &pcie_priv->desc_data[SYSADPT_TOTAL_TX_QUEUES - 1];
 
 	desc->prx_ring = (struct pcie_rx_desc *)
 		dma_alloc_coherent(priv->dev,
@@ -80,7 +80,7 @@ static int pcie_rx_ring_init(struct mwl_priv *priv)
 	dma_addr_t dma;
 	u32 val;
 
-	desc = &pcie_priv->desc_data[0];
+	desc = &pcie_priv->desc_data[SYSADPT_TOTAL_TX_QUEUES - 1];
 
 	if (desc->prx_ring) {
 		desc->rx_buf_size = SYSADPT_MAX_AGGR_SIZE;
@@ -145,7 +145,7 @@ static void pcie_rx_ring_cleanup(struct mwl_priv *priv)
 	int i;
 	struct pcie_rx_hndl *rx_hndl;
 
-	desc = &pcie_priv->desc_data[0];
+	desc = &pcie_priv->desc_data[SYSADPT_TOTAL_TX_QUEUES - 1];
 
 	if (desc->prx_ring) {
 		for (i = 0; i < PCIE_MAX_NUM_RX_DESC; i++) {
@@ -178,7 +178,7 @@ static void pcie_rx_ring_free(struct mwl_priv *priv)
 	struct pcie_priv *pcie_priv = priv->hif.priv;
 	struct pcie_desc_data *desc;
 
-	desc = &pcie_priv->desc_data[0];
+	desc = &pcie_priv->desc_data[SYSADPT_TOTAL_TX_QUEUES - 1];
 
 	if (desc->prx_ring) {
 		pcie_rx_ring_cleanup(priv);
@@ -320,7 +320,7 @@ static inline int pcie_rx_refill(struct mwl_priv *priv,
 	struct pcie_desc_data *desc;
 	dma_addr_t dma;
 
-	desc = &pcie_priv->desc_data[0];
+	desc = &pcie_priv->desc_data[SYSADPT_TOTAL_TX_QUEUES - 1];
 
 	rx_hndl->psk_buff = dev_alloc_skb(desc->rx_buf_size);
 
@@ -398,7 +398,7 @@ void pcie_rx_recv(unsigned long data)
 	u8 *qc;
 	const u8 eapol[] = {0x88, 0x8e};
 
-	desc = &pcie_priv->desc_data[0];
+	desc = &pcie_priv->desc_data[SYSADPT_TOTAL_TX_QUEUES - 1];
 	curr_hndl = desc->pnext_rx_hndl;
 
 	if (!curr_hndl) {

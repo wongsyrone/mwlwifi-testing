@@ -375,6 +375,8 @@ static inline void pcie_tx_skb(struct mwl_priv *priv, int desc_num,
 	struct pcie_dma_data *dma_data;
 	struct ieee80211_hdr *wh;
 	dma_addr_t dma;
+	struct mwl_sta *sta_info;
+	u32 rate_info = 0;
 
 	if (WARN_ON(!tx_skb))
 		return;
@@ -384,6 +386,10 @@ static inline void pcie_tx_skb(struct mwl_priv *priv, int desc_num,
 	sta = (struct ieee80211_sta *)tx_ctrl->sta;
 	vif = (struct ieee80211_vif *)tx_info->control.vif;
 	mwl_vif = mwl_dev_get_vif(vif);
+	if(sta){
+		sta_info = mwl_dev_get_sta(sta);
+		rate_info = sta_info->tx_rate_info;
+	}
 
 	pcie_tx_encapsulate_frame(priv, tx_skb, (struct ieee80211_key_conf *)tx_info->control.hw_key, &ccmp);
 
@@ -426,9 +432,6 @@ static inline void pcie_tx_skb(struct mwl_priv *priv, int desc_num,
 					INCREASE_IV(mwl_vif->iv16,
 						    mwl_vif->iv32);
 				} else {
-					struct mwl_sta *sta_info;
-
-					sta_info = mwl_dev_get_sta(sta);
 
 					pcie_tx_add_ccmp_hdr(dma_data->data,
 							     0,
@@ -453,6 +456,8 @@ static inline void pcie_tx_skb(struct mwl_priv *priv, int desc_num,
 	tx_desc->type = tx_ctrl->type;
 	tx_desc->xmit_control = tx_ctrl->xmit_control;
 	tx_desc->sap_pkt_info = 0;
+	tx_desc->rate_info = cpu_to_le32(rate_info);
+
 	dma = pci_map_single(pcie_priv->pdev, tx_skb->data,
 			     tx_skb->len, PCI_DMA_TODEVICE);
 	if (pci_dma_mapping_error(pcie_priv->pdev, dma)) {

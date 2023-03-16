@@ -274,7 +274,7 @@ static inline bool pcie_rx_process_mesh_amsdu(struct mwl_priv *priv,
 	spin_unlock_bh(&priv->sta_lock);
 
 	qc = ieee80211_get_qos_ctl(wh);
-	*qc &= ~IEEE80211_QOS_CTL_A_MSDU_PRESENT;
+	*qc &= cpu_to_le16(~IEEE80211_QOS_CTL_A_MSDU_PRESENT);
 
 	wh_len = ieee80211_hdrlen(wh->frame_control);
 	len = wh_len;
@@ -508,9 +508,9 @@ void pcie_rx_recv(unsigned long data)
 				ieee80211_hdrlen(wh->frame_control) + 6;
 
 			if (!memcmp(_data, eapol, sizeof(eapol)))
-				*qc |= 7;
+				*qc |= cpu_to_le16(0x7);
 
-			if ((*qc & IEEE80211_QOS_CTL_A_MSDU_PRESENT) && (ieee80211_has_a4(wh->frame_control))) {
+			if ((le16_to_cpu(*qc) & IEEE80211_QOS_CTL_A_MSDU_PRESENT) && (ieee80211_has_a4(wh->frame_control))) {
 				if (pcie_rx_process_mesh_amsdu(priv, prx_skb, status))
 					goto out;
 			}

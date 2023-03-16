@@ -52,7 +52,7 @@ struct pcie_tx_ctrl {
 	void *sta;
 	u8 tx_priority;
 	u8 type;
-	u16 qos_ctrl;
+	__le16 qos_ctrl;
 	u8 xmit_control;
 };
 
@@ -449,7 +449,7 @@ static inline void pcie_tx_skb(struct mwl_priv *priv, int desc_num,
 	if (tx_info->flags & IEEE80211_TX_CTL_NO_CCK_RATE)
 		tx_desc->flags |= PCIE_TX_WCB_FLAGS_NO_CCK_RATE;
 	tx_desc->tx_priority = tx_ctrl->tx_priority;
-	tx_desc->qos_ctrl = cpu_to_le16(tx_ctrl->qos_ctrl);
+	tx_desc->qos_ctrl = tx_ctrl->qos_ctrl;
 	tx_desc->pkt_len = cpu_to_le16(tx_skb->len);
 	tx_desc->packet_info = 0;
 	tx_desc->data_rate = 0;
@@ -620,7 +620,7 @@ struct sk_buff *pcie_tx_do_amsdu(struct mwl_priv *priv,
 
 		skb_put_data(newskb, tx_skb->data, wh_len);
 
-		tx_ctrl->qos_ctrl |= IEEE80211_QOS_CTL_A_MSDU_PRESENT;
+		tx_ctrl->qos_ctrl |= cpu_to_le16(IEEE80211_QOS_CTL_A_MSDU_PRESENT);
 		amsdu_info = IEEE80211_SKB_CB(newskb);
 		memcpy(amsdu_info, tx_info, sizeof(*tx_info));
 		amsdu->skb = newskb;
@@ -969,7 +969,7 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 	struct mwl_vif *mwl_vif;
 	struct ieee80211_hdr *wh;
 	u8 xmitcontrol;
-	u16 qos;
+	__le16 qos;
 	int txpriority;
 	u8 tid = 0;
 	struct mwl_ampdu_stream *stream = NULL;
@@ -988,7 +988,7 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 	mwl_vif = mwl_dev_get_vif(tx_info->control.vif);
 
 	if (ieee80211_is_data_qos(wh->frame_control))
-		qos = le16_to_cpu(*((__le16 *)ieee80211_get_qos_ctl(wh)));
+		qos = *ieee80211_get_qos_ctl(wh);
 	else
 		qos = 0;
 
@@ -1065,7 +1065,7 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 
 	if (sta && sta->ht_cap.ht_supported && !eapol_frame &&
 	    ieee80211_is_data_qos(wh->frame_control)) {
-		tid = qos & 0xf;
+		tid = le16_to_cpu(qos) & 0xf;
 		pcie_tx_count_packet(sta, tid);
 
 		spin_lock_bh(&priv->stream_lock);

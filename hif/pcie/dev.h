@@ -733,7 +733,6 @@ static inline void pcie_tx_add_dma_header(struct mwl_priv *priv,
 	struct ieee80211_hdr *wh;
 	int dma_hdrlen;
 	int hdrlen;
-	int reqd_hdrlen;
 	int needed_room;
 	struct pcie_dma_data *dma_data;
 
@@ -750,10 +749,8 @@ static inline void pcie_tx_add_dma_header(struct mwl_priv *priv,
 
 	hdrlen = ieee80211_hdrlen(wh->frame_control);
 
-	reqd_hdrlen = dma_hdrlen + head_pad;
-
-	if (hdrlen != reqd_hdrlen) {
-		needed_room = reqd_hdrlen - hdrlen;
+	needed_room = dma_hdrlen - hdrlen + head_pad;
+	if(needed_room) {
 		if (skb_headroom(skb) < needed_room) {
 			wiphy_debug(priv->hw->wiphy, "headroom is short: %d %d",
 				    skb_headroom(skb), needed_room);

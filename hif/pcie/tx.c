@@ -384,14 +384,6 @@ static inline void pcie_tx_skb(struct mwl_priv *priv, int desc_num,
 	sta = (struct ieee80211_sta *)tx_ctrl->sta;
 	vif = (struct ieee80211_vif *)tx_info->control.vif;
 	mwl_vif = mwl_dev_get_vif(vif);
-	if(sta){
-		sta_info = mwl_dev_get_sta(sta);
-		rate_info = sta_info->tx_rate_info;
-	}
-	struct ieee80211_hdr *wh2 = (struct ieee80211_hdr *)tx_skb->data;
-
-	// wiphy_debug(priv->hw->wiphy,"pcie_tx_skb %p, len %d, qos %d", tx_skb, tx_skb->len, tx_ctrl->qos_ctrl);
-	wiphy_debug(priv->hw->wiphy,"pcie_tx_skb %p, seq %d", tx_skb, IEEE80211_SEQ_TO_SN(le16_to_cpu(wh2->seq_ctrl)));
 
 	pcie_tx_encapsulate_frame(priv, tx_skb, (struct ieee80211_key_conf *)tx_info->control.hw_key, &ccmp);
 
@@ -523,7 +515,6 @@ void pcie_tx_xmit_scheduler(struct mwl_priv *priv,
 	if (tx_info->flags  & IEEE80211_TX_CTL_ASSIGN_SEQ) {
 		wh->seq_ctrl &= cpu_to_le16(IEEE80211_SCTL_FRAG);
 		wh->seq_ctrl |= cpu_to_le16(mwl_vif->seqno);
-		wiphy_debug(priv->hw->wiphy,"pcie_tx_xmit_scheduler %p, no %d", skb, mwl_vif->seqno);
 
 		if (mwl_vif->seqno == 0)
 			mwl_vif->seqno = 0x1000;
@@ -649,9 +640,6 @@ struct sk_buff *pcie_tx_do_amsdu(struct mwl_priv *priv,
 
 	amsdu->num++;
 	amsdu->pad = (len + ETH_HLEN) % 4;
-	// wiphy_debug(priv->hw->wiphy,"pcie_tx_do_amsdu %p amsdu->len:%d, skb->len: %d, whlen: %d, len %d, qos %d, pad %d",amsdu->skb, amsdu->skb->len, tx_skb->len, wh_len, len, tx_ctrl->qos_ctrl, amsdu->pad);
-	wiphy_debug(priv->hw->wiphy,"pcie_tx_do_amsdu %p, seq %d", tx_skb, IEEE80211_SEQ_TO_SN(le16_to_cpu(wh->seq_ctrl)));
-
 	dev_kfree_skb_any(tx_skb);
 	if (amsdu->num > SYSADPT_AMSDU_FRAGMENT_THRESHOLD) {
 		amsdu->num = 0;
@@ -1012,7 +1000,7 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 		pkt_type = be16_to_cpu(*((__be16 *)
 			&skb->data[ieee80211_hdrlen(wh->frame_control) + 6]));
 		if (pkt_type == ETH_P_PAE) {
-			index = IEEE80211_AC_VO;
+			index = IEEE80211_AC_VI;
 			eapol_frame = true;
 		}
 		if (sta) {
@@ -1097,6 +1085,7 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 
 
 				if (txpriority >= SYSADPT_TX_WMM_QUEUES) {
+					index = 3;
 					spin_unlock_bh(&priv->stream_lock);
 					tx_ctrl = (struct pcie_tx_ctrl *)tx_info->driver_data;
 					tx_ctrl->sta = (void *)sta;

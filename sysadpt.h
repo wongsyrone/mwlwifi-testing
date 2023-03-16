@@ -49,7 +49,7 @@
 #define SYSADPT_NUM_OF_MESH            1
 
 #define SYSADPT_TOTAL_TX_QUEUES        (SYSADPT_TX_WMM_QUEUES + \
-					SYSADPT_NUM_OF_AP - 1)
+					SYSADPT_NUM_OF_AP)
 
 #define SYSADPT_MAX_AGGR_SIZE          4096
 

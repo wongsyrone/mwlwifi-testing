@@ -410,7 +410,7 @@ void pcie_rx_recv(unsigned long data)
 		}
 
 		skb_put(prx_skb, pkt_len);
-		pcie_rx_remove_dma_header(prx_skb, curr_hndl->pdesc->qos_ctrl);
+		pcie_rx_remove_dma_header(priv, prx_skb, curr_hndl->pdesc->qos_ctrl);
 
 		wh = (struct ieee80211_hdr *)prx_skb->data;
 

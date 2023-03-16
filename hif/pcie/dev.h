@@ -733,7 +733,6 @@ static inline void pcie_tx_add_dma_header(struct mwl_priv *priv,
 	struct ieee80211_hdr *wh;
 	int dma_hdrlen;
 	int hdrlen;
-	int reqd_hdrlen;
 	int needed_room;
 	struct pcie_dma_data *dma_data;
 
@@ -750,16 +749,17 @@ static inline void pcie_tx_add_dma_header(struct mwl_priv *priv,
 
 	hdrlen = ieee80211_hdrlen(wh->frame_control);
 
-	reqd_hdrlen = dma_hdrlen + head_pad;
-
-	if (hdrlen != reqd_hdrlen) {
-		needed_room = reqd_hdrlen - hdrlen;
+	needed_room = dma_hdrlen - hdrlen + head_pad;
+	if(needed_room > 0) {
 		if (skb_headroom(skb) < needed_room) {
 			wiphy_debug(priv->hw->wiphy, "headroom is short: %d %d",
 				    skb_headroom(skb), needed_room);
 			skb_cow(skb, needed_room);
 		}
 		skb_push(skb, needed_room);
+	} else if (unlikely(needed_room < 0)) {
+		wiphy_warn(priv->hw->wiphy, "needed_room %d < 0", needed_room);
+		skb_pull(skb, abs(needed_room));
 	}
 
 	if (ieee80211_is_data_qos(wh->frame_control))
@@ -987,26 +987,30 @@ static inline void pcie_rx_prepare_status(struct mwl_priv *priv, u16 format,
 	}
 }
 
-static inline void pcie_rx_remove_dma_header(struct sk_buff *skb, __le16 qos)
+static inline void pcie_rx_remove_dma_header(struct mwl_priv *priv, struct sk_buff *skb, __le16 qos)
 {
-	struct pcie_dma_data *dma_data;
-	int hdrlen;
+	struct pcie_dma_data *dma_data = (struct pcie_dma_data *)skb->data;
+	int hdrlen = ieee80211_hdrlen(dma_data->wh.frame_control);
+	struct ieee80211_hdr *wh = (struct ieee80211_hdr *)(dma_data->data - hdrlen);
 
-	dma_data = (struct pcie_dma_data *)skb->data;
-	hdrlen = ieee80211_hdrlen(dma_data->wh.frame_control);
 
-	if (hdrlen != sizeof(dma_data->wh)) {
-		if (ieee80211_is_data_qos(dma_data->wh.frame_control)) {
-			memmove(dma_data->data - hdrlen,
-				&dma_data->wh, hdrlen - 2);
-			*((__le16 *)(dma_data->data - 2)) = qos;
-		} else {
-			memmove(dma_data->data - hdrlen, &dma_data->wh, hdrlen);
+	if (wh != &dma_data->wh) {
+		if (ieee80211_is_data_qos(dma_data->wh.frame_control) ||
+		    ieee80211_is_qos_nullfunc(dma_data->wh.frame_control)) {
+			memmove(wh, &dma_data->wh, hdrlen - IEEE80211_QOS_CTL_LEN);
+			*((__le16 *)(dma_data->data - IEEE80211_QOS_CTL_LEN)) = qos;
+		}
+		else {
+			memmove(wh, &dma_data->wh, hdrlen);
 		}
 	}
 
-	if (hdrlen != sizeof(*dma_data))
+	if (hdrlen < sizeof(*dma_data))
 		skb_pull(skb, sizeof(*dma_data) - hdrlen);
+	else if(unlikely(hdrlen > sizeof(*dma_data))) {
+		wiphy_warn(priv->hw->wiphy, "hdrlen %d > %d sizeof(*dma_data)", hdrlen, sizeof(*dma_data));
+		skb_push(skb, abs(sizeof(*dma_data) - hdrlen));
+	}
 }
 
 static inline void pcie_mask_int(struct pcie_priv *pcie_priv,

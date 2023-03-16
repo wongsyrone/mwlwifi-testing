@@ -628,7 +628,8 @@ struct sk_buff *pcie_tx_do_amsdu(struct mwl_priv *priv,
 			skb_put_zero(amsdu->skb, amsdu->pad);
 
 	/* Prepare MSDU DATA */
-	data = amsdu->skb->data + amsdu->skb->len;
+	data = amsdu->skb->tail;
+	skb_put(amsdu->skb, ETH_HLEN);
 
 	if (sta_info->is_mesh_node) {
 		ether_addr_copy(data, wh->addr3);
@@ -639,13 +640,11 @@ struct sk_buff *pcie_tx_do_amsdu(struct mwl_priv *priv,
 	}
 	*(u8 *)(data + ETH_HLEN - 1) = len & 0xff;
 	*(u8 *)(data + ETH_HLEN - 2) = (len >> 8) & 0xff;
-	memcpy(data + ETH_HLEN, tx_skb->data + wh_len, len);
 
-	skb_put(amsdu->skb, ETH_HLEN);
 	skb_put_data(amsdu->skb, tx_skb->data + wh_len, len);
 
 	amsdu->num++;
-	amsdu->pad = ((len + ETH_HLEN) % 4) ? (4 - (len + ETH_HLEN) % 4) : 0;
+	amsdu->pad = (len + ETH_HLEN) % 4;
 	dev_kfree_skb_any(tx_skb);
 	if (amsdu->num > SYSADPT_AMSDU_FRAGMENT_THRESHOLD) {
 		amsdu->num = 0;

@@ -519,6 +519,8 @@ struct sk_buff *pcie_tx_do_amsdu(struct mwl_priv *priv,
 	int wh_len;
 	u16 len;
 	u8 *data;
+	int headroom;
+	struct sk_buff *newskb;
 
 	sta = (struct ieee80211_sta *)tx_ctrl->sta;
 	sta_info = mwl_dev_get_sta(sta);
@@ -548,7 +550,6 @@ struct sk_buff *pcie_tx_do_amsdu(struct mwl_priv *priv,
 		if (amsdu->num) {
 			pcie_tx_skb(priv, desc_num, amsdu->skb);
 			amsdu->num = 0;
-			amsdu->cur_pos = NULL;
 		}
 		spin_unlock_bh(&sta_info->amsdu_lock);
 		return tx_skb;
@@ -562,9 +563,8 @@ struct sk_buff *pcie_tx_do_amsdu(struct mwl_priv *priv,
 
 	if (amsdu->num) {
 		if ((amsdu->skb->len + len) > amsdu_allow_size) {
-			pcie_tx_skb(priv, desc_num, amsdu->skb);
+			pcie_tx_xmit_scheduler(priv, desc_num, amsdu->skb);
 			amsdu->num = 0;
-			amsdu->cur_pos = NULL;
 		}
 	}
 
@@ -572,9 +572,6 @@ struct sk_buff *pcie_tx_do_amsdu(struct mwl_priv *priv,
 	len = tx_skb->len - wh_len;
 
 	if (amsdu->num == 0) {
-		struct sk_buff *newskb;
-		int headroom;
-
 		newskb = dev_alloc_skb(amsdu_allow_size +
 				       pcie_priv->tx_head_room);
 		if (!newskb) {
@@ -587,51 +584,37 @@ struct sk_buff *pcie_tx_do_amsdu(struct mwl_priv *priv,
 			skb_reserve(newskb,
 				    (pcie_priv->tx_head_room - headroom));
 
-		data = newskb->data;
-		memcpy(data, tx_skb->data, wh_len);
-		if (sta_info->is_mesh_node) {
-			ether_addr_copy(data + wh_len, wh->addr3);
-			ether_addr_copy(data + wh_len + ETH_ALEN, wh->addr4);
-		} else {
-			ether_addr_copy(data + wh_len,
-					ieee80211_get_DA(wh));
-			ether_addr_copy(data + wh_len + ETH_ALEN,
-					ieee80211_get_SA(wh));
-		}
-		*(u8 *)(data + wh_len + ETH_HLEN - 1) = len & 0xff;
-		*(u8 *)(data + wh_len + ETH_HLEN - 2) = (len >> 8) & 0xff;
-		memcpy(data + wh_len + ETH_HLEN, tx_skb->data + wh_len, len);
+		skb_put_data(newskb, tx_skb->data, wh_len);
 
-		skb_put(newskb, tx_skb->len + ETH_HLEN);
 		tx_ctrl->qos_ctrl |= IEEE80211_QOS_CTL_A_MSDU_PRESENT;
 		amsdu_info = IEEE80211_SKB_CB(newskb);
 		memcpy(amsdu_info, tx_info, sizeof(*tx_info));
 		amsdu->skb = newskb;
+	} else if (amsdu->pad)
+			skb_put_zero(amsdu->skb, amsdu->pad);
+
+	/* Prepare MSDU DATA */
+	data = amsdu->skb->data + amsdu->skb->len;
+
+	if (sta_info->is_mesh_node) {
+		ether_addr_copy(data, wh->addr3);
+		ether_addr_copy(data + ETH_ALEN, wh->addr4);
 	} else {
-		amsdu->cur_pos += amsdu->pad;
-		data = amsdu->cur_pos;
-
-		if (sta_info->is_mesh_node) {
-			ether_addr_copy(data, wh->addr3);
-			ether_addr_copy(data + ETH_ALEN, wh->addr4);
-		} else {
-			ether_addr_copy(data, ieee80211_get_DA(wh));
-			ether_addr_copy(data + ETH_ALEN, ieee80211_get_SA(wh));
-		}
-		*(u8 *)(data + ETH_HLEN - 1) = len & 0xff;
-		*(u8 *)(data + ETH_HLEN - 2) = (len >> 8) & 0xff;
-		memcpy(data + ETH_HLEN, tx_skb->data + wh_len, len);
-
-		skb_put(amsdu->skb, len + ETH_HLEN + amsdu->pad);
+		ether_addr_copy(data, ieee80211_get_DA(wh));
+		ether_addr_copy(data + ETH_ALEN, ieee80211_get_SA(wh));
 	}
+	*(u8 *)(data + ETH_HLEN - 1) = len & 0xff;
+	*(u8 *)(data + ETH_HLEN - 2) = (len >> 8) & 0xff;
+	memcpy(data + ETH_HLEN, tx_skb->data + wh_len, len);
+
+	skb_put(amsdu->skb, ETH_HLEN);
+	skb_put_data(amsdu->skb, tx_skb->data + wh_len, len);
 
 	amsdu->num++;
 	amsdu->pad = ((len + ETH_HLEN) % 4) ? (4 - (len + ETH_HLEN) % 4) : 0;
-	amsdu->cur_pos = amsdu->skb->data + amsdu->skb->len;
 	dev_kfree_skb_any(tx_skb);
-	if (amsdu->num > SYSADPT_AMSDU_PACKET_THRESHOLD) {
+	if (amsdu->num > SYSADPT_AMSDU_FRAGMENT_THRESHOLD) {
 		amsdu->num = 0;
-		amsdu->cur_pos = NULL;
 		spin_unlock_bh(&sta_info->amsdu_lock);
 		return amsdu->skb;
 	}
@@ -786,9 +769,8 @@ static void pcie_non_pfu_tx_done(struct mwl_priv *priv)
 			wh = &dma_data->wh;
 
 			info = IEEE80211_SKB_CB(done_skb);
-			if (ieee80211_is_data(wh->frame_control) ||
-			    ieee80211_is_data_qos(wh->frame_control)) {
-					pcie_tx_prepare_info(priv, rate, info);
+			if (ieee80211_is_data(wh->frame_control)) {
+				pcie_tx_prepare_info(priv, rate, info);
 			} else {
 				pcie_tx_prepare_info(priv, 0, info);
 			}
@@ -927,7 +909,6 @@ void pcie_tx_flush_amsdu(unsigned long data)
 						pcie_tx_skb(priv, i,
 							    amsdu_frag->skb);
 						amsdu_frag->num = 0;
-						amsdu_frag->cur_pos = NULL;
 					}
 				}
 			}
@@ -1234,21 +1215,14 @@ void pcie_tx_del_sta_amsdu_pkts(struct ieee80211_hw *hw,
 	struct mwl_sta *sta_info = mwl_dev_get_sta(sta);
 	int num;
 	struct mwl_amsdu_frag *amsdu_frag;
-	struct ieee80211_tx_info *tx_info;
-	struct pcie_tx_ctrl *tx_ctrl;
 
 	spin_lock_bh(&sta_info->amsdu_lock);
 	for (num = 0; num < SYSADPT_TX_WMM_QUEUES; num++) {
 		amsdu_frag = &sta_info->amsdu_ctrl.frag[num];
 		if (amsdu_frag->num) {
 			amsdu_frag->num = 0;
-			amsdu_frag->cur_pos = NULL;
-			if (amsdu_frag->skb) {
-				tx_info = IEEE80211_SKB_CB(amsdu_frag->skb);
-				tx_ctrl = (struct pcie_tx_ctrl *)
-					tx_info->driver_data;
+			if (amsdu_frag->skb)
 				dev_kfree_skb_any(amsdu_frag->skb);
-			}
 		}
 	}
 	spin_unlock_bh(&sta_info->amsdu_lock);

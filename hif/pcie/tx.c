@@ -620,7 +620,7 @@ struct sk_buff *pcie_tx_do_amsdu(struct mwl_priv *priv,
 
 		skb_put_data(newskb, tx_skb->data, wh_len);
 
-		tx_ctrl->qos_ctrl |= cpu_to_le16(IEEE80211_QOS_CTL_A_MSDU_PRESENT);
+		tx_ctrl->qos_ctrl = cpu_to_le16(le16_to_cpu(tx_ctrl->qos_ctrl) | IEEE80211_QOS_CTL_A_MSDU_PRESENT);
 		amsdu_info = IEEE80211_SKB_CB(newskb);
 		memcpy(amsdu_info, tx_info, sizeof(*tx_info));
 		amsdu->skb = newskb;
@@ -815,7 +815,7 @@ static void pcie_non_pfu_tx_done(struct mwl_priv *priv)
 				if(ieee80211_is_qos_nullfunc(dma_data->wh.frame_control) ||
 				   ieee80211_is_data_qos(dma_data->wh.frame_control)) {
 					memmove(dma_data->data - hdrlen, &dma_data->wh, hdrlen - 2);
-					*((__le16 *)(dma_data->data - 2)) = tx_desc->qos_ctrl;
+					memmove(dma_data->data - 2, &tx_desc->qos_ctrl, 2);
 				} else
 					memmove(dma_data->data - hdrlen, &dma_data->wh, hdrlen);
 				skb_pull(done_skb, sizeof(*dma_data) - hdrlen);
@@ -1024,14 +1024,14 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 	if (mgmtframe || ieee80211_is_ctl(wh->frame_control)) {
 		qos = 0;
 	} else if (ieee80211_is_data(wh->frame_control)) {
-		qos &= ~IEEE80211_QOS_CTL_ACK_POLICY_MASK;
+		qos = cpu_to_le16(le16_to_cpu(qos) & ~IEEE80211_QOS_CTL_ACK_POLICY_MASK);
 
 		if (tx_info->flags & IEEE80211_TX_CTL_AMPDU) {
 			xmitcontrol &= ~EAGLE_TXD_XMITCTRL_ENABLE_AMPDU;
-			qos |= IEEE80211_QOS_CTL_ACK_POLICY_BLOCKACK;
+			qos = cpu_to_le16(le16_to_cpu(qos) | IEEE80211_QOS_CTL_ACK_POLICY_BLOCKACK);
 		} else {
 			xmitcontrol |= EAGLE_TXD_XMITCTRL_ENABLE_AMPDU;
-			qos |= IEEE80211_QOS_CTL_ACK_POLICY_NORMAL;
+			qos = cpu_to_le16(le16_to_cpu(qos) | IEEE80211_QOS_CTL_ACK_POLICY_NORMAL);
 		}
 
 		if (is_multicast_ether_addr(wh->addr1) || eapol_frame)
@@ -1076,7 +1076,7 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 
 		if (stream) {
 			if (stream->state == AMPDU_STREAM_ACTIVE) {
-				if (WARN_ON(!(qos &
+				if (WARN_ON(!(le16_to_cpu(qos) &
 					    IEEE80211_QOS_CTL_ACK_POLICY_BLOCKACK))) {
 					spin_unlock_bh(&priv->stream_lock);
 					dev_kfree_skb_any(skb);
@@ -1140,8 +1140,8 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 
 		spin_unlock_bh(&priv->stream_lock);
 	} else {
-		qos &= ~IEEE80211_QOS_CTL_ACK_POLICY_MASK;
-		qos |= IEEE80211_QOS_CTL_ACK_POLICY_NORMAL;
+		qos = cpu_to_le16(le16_to_cpu(qos) & ~IEEE80211_QOS_CTL_ACK_POLICY_MASK);
+		qos = cpu_to_le16(le16_to_cpu(qos) | IEEE80211_QOS_CTL_ACK_POLICY_NORMAL);
 	}
 
 	tx_ctrl = (struct pcie_tx_ctrl *)tx_info->driver_data;

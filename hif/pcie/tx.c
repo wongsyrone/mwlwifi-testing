@@ -390,6 +390,7 @@ static inline void pcie_tx_skb(struct mwl_priv *priv, int desc_num,
 		sta_info = mwl_dev_get_sta(sta);
 		rate_info = sta_info->tx_rate_info;
 	}
+	// wiphy_debug(priv->hw->wiphy,"pcie_tx_skb index:%d skb:%p\n", desc_num, tx_skb);
 
 	pcie_tx_encapsulate_frame(priv, tx_skb, (struct ieee80211_key_conf *)tx_info->control.hw_key, &ccmp);
 
@@ -504,6 +505,8 @@ static inline void pcie_tx_skb(struct mwl_priv *priv, int desc_num,
 		       pcie_priv->iobase1 + MACREG_REG_H2A_INTERRUPT_EVENTS);
 		pcie_priv->desc_data[desc_num].pnext_tx_hndl = tx_hndl->pnext;
 		pcie_priv->fw_desc_cnt[desc_num]++;
+		// wiphy_debug(priv->hw->wiphy,"pcie_tx_skb 2 index:%d skb:%p\n", desc_num, tx_skb);
+
 	}
 }
 
@@ -530,6 +533,8 @@ void pcie_tx_xmit_scheduler(struct mwl_priv *priv,
 
 	if (skb_queue_len(&pcie_priv->txq[desc_num]) > pcie_priv->txq_limit)
 		ieee80211_stop_queue(priv->hw, SYSADPT_TX_WMM_QUEUES - desc_num - 1);
+
+	// wiphy_debug(priv->hw->wiphy,"pcie_tx_xmit_scheduler desc_num:%d skb:%p\n", desc_num, skb);
 
 	skb_queue_tail(&pcie_priv->txq[desc_num], skb);
 

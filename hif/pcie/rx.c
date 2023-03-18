@@ -484,6 +484,8 @@ void pcie_rx_recv(unsigned long data)
 				}
 
 				if (!ieee80211_is_auth(wh->frame_control)) {
+					wh->frame_control &= ~__cpu_to_le16(IEEE80211_FCTL_PROTECTED);
+
 					if (priv->chip_type != MWL8997)
 						status->flag |=
 							RX_FLAG_IV_STRIPPED |

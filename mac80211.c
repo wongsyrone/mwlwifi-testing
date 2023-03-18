@@ -678,6 +678,7 @@ static int mwl_mac80211_conf_tx(struct ieee80211_hw *hw,
 	if (WARN_ON(queue > SYSADPT_TX_WMM_QUEUES - 1))
 		return -EINVAL;
 
+	wiphy_debug(hw->wiphy, "mwl_mac80211_conf_tx queue: %d\n",queue);
 	memcpy(&priv->wmm_params[queue], params, sizeof(*params));
 
 	if (!priv->wmm_enabled) {

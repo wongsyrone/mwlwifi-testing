@@ -1085,6 +1085,7 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 				txpriority =
 					(SYSADPT_TX_WMM_QUEUES + stream->idx) %
 					TOTAL_HW_QUEUES;
+
 			} else if (stream->state == AMPDU_STREAM_NEW) {
 				/* We get here if the driver sends us packets
 				 * after we've initiated a stream, but before
@@ -1144,12 +1145,20 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 	/* Initiate the ampdu session here */
 	if (start_ba_session) {
 		spin_lock_bh(&priv->stream_lock);
-		rc = mwl_fwcmd_start_stream(hw, stream);
-		if (rc)
-			mwl_fwcmd_remove_stream(hw, stream);
-		else
-			wiphy_debug(hw->wiphy, "Mac80211 start BA %pM\n",
-				    stream->sta->addr);
+
+		if (abs(stream->jiffies - jiffies) > 5 * HZ / 10) {
+			rc = mwl_fwcmd_start_stream(hw, stream);
+			if (rc)
+				mwl_fwcmd_remove_stream(hw, stream);
+			else if (priv->debug_ampdu)
+				wiphy_debug(hw->wiphy, "Mac80211 start BA %pM\n",
+						stream->sta->addr);
+			stream->jiffies = jiffies;
+			stream->desc_num = index;
+		}
+		else if (priv->debug_ampdu)
+			wiphy_err(hw->wiphy, "Mac80211 %pM starts BA too quickly\n",
+				  stream->sta->addr);
 		spin_unlock_bh(&priv->stream_lock);
 	}
 }

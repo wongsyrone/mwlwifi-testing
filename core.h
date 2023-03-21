@@ -186,6 +186,8 @@ struct mwl_ampdu_stream {
 	u8 tid;
 	u8 state;
 	int idx;
+	int desc_num;
+	unsigned long jiffies;
 };
 
 struct mwl_stnid {
@@ -350,6 +352,8 @@ struct mwl_priv {
 	int fixed_rate;
 	bool coredump_text;
 	u32 ra_tx_attempt[2][6];
+
+	bool debug_ampdu;
 };
 
 struct beacon_info {

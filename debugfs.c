@@ -2085,6 +2085,39 @@ err:
 	return ret;
 }
 
+static ssize_t mwl_debugfs_debug_ampdu_write(struct file *file,
+					  const char __user *ubuf,
+					  size_t count, loff_t *ppos)
+{
+	struct mwl_priv *priv = (struct mwl_priv *)file->private_data;
+	unsigned long addr = get_zeroed_page(GFP_KERNEL);
+	char *buf = (char *)addr;
+	size_t buf_size = min_t(size_t, count, PAGE_SIZE - 1);
+	int value;
+	ssize_t ret;
+
+	if (!buf)
+		return -ENOMEM;
+
+	if (copy_from_user(buf, ubuf, buf_size)) {
+		ret = -EFAULT;
+		goto err;
+	}
+
+	if (kstrtoint(buf, 0, &value)) {
+		ret = -EINVAL;
+		goto err;
+	}
+
+	priv->debug_ampdu = value ? true : false;
+
+	ret = count;
+
+err:
+	free_page(addr);
+	return ret;
+}
+
 MWLWIFI_DEBUGFS_FILE_READ_OPS(info);
 MWLWIFI_DEBUGFS_FILE_READ_OPS(tx_status);
 MWLWIFI_DEBUGFS_FILE_READ_OPS(rx_status);
@@ -2111,6 +2144,7 @@ MWLWIFI_DEBUGFS_FILE_OPS(fixed_rate);
 MWLWIFI_DEBUGFS_FILE_OPS(core_dump);
 MWLWIFI_DEBUGFS_FILE_WRITE_OPS(mcast_cts);
 MWLWIFI_DEBUGFS_FILE_WRITE_OPS(wmmedcaap);
+MWLWIFI_DEBUGFS_FILE_WRITE_OPS(debug_ampdu);
 
 void mwl_debugfs_init(struct ieee80211_hw *hw)
 {
@@ -2149,6 +2183,7 @@ void mwl_debugfs_init(struct ieee80211_hw *hw)
 	MWLWIFI_DEBUGFS_ADD_FILE(core_dump);
 	MWLWIFI_DEBUGFS_ADD_FILE(mcast_cts);
 	MWLWIFI_DEBUGFS_ADD_FILE(wmmedcaap);
+	MWLWIFI_DEBUGFS_ADD_FILE(debug_ampdu);
 }
 
 void mwl_debugfs_remove(struct ieee80211_hw *hw)

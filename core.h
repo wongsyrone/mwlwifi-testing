@@ -186,6 +186,8 @@ struct mwl_ampdu_stream {
 	u8 tid;
 	u8 state;
 	int idx;
+	int desc_num;
+	unsigned long jiffies;
 };
 
 struct mwl_stnid {

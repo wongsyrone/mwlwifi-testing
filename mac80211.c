@@ -822,7 +822,7 @@ static int mwl_mac80211_ampdu_action(struct ieee80211_hw *hw,
 		if (stream) {
 			if (stream->state == AMPDU_STREAM_ACTIVE) {
 				stream->state = AMPDU_STREAM_IN_PROGRESS;
-				mwl_hif_tx_del_ampdu_pkts(hw, sta, tid);
+				mwl_hif_tx_del_ampdu_pkts(hw, sta, stream->desc_num);
 				spin_unlock_bh(&priv->stream_lock);
 				mwl_fwcmd_destroy_ba(hw, stream,
 						     BA_FLAG_DIRECTION_UP);

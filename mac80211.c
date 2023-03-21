@@ -747,6 +747,10 @@ static int mwl_mac80211_ampdu_action(struct ieee80211_hw *hw,
 	u8 buf_size = params->buf_size;
 	u8 *addr = sta->addr;
 	struct mwl_sta *sta_info;
+	struct mwl_vif *mwl_vif = mwl_dev_get_vif(vif);
+
+	wiphy_debug(hw->wiphy, "ampdu macid %i sta %pM tid %u action %d\n",
+		   mwl_vif->macid, sta->addr, tid, action);
 
 	sta_info = mwl_dev_get_sta(sta);
 
@@ -822,7 +826,7 @@ static int mwl_mac80211_ampdu_action(struct ieee80211_hw *hw,
 		if (stream) {
 			if (stream->state == AMPDU_STREAM_ACTIVE) {
 				stream->state = AMPDU_STREAM_IN_PROGRESS;
-				mwl_hif_tx_del_ampdu_pkts(hw, sta, tid);
+				mwl_hif_tx_del_ampdu_pkts(hw, sta, stream->desc_num);
 				spin_unlock_bh(&priv->stream_lock);
 				mwl_fwcmd_destroy_ba(hw, stream,
 						     BA_FLAG_DIRECTION_UP);

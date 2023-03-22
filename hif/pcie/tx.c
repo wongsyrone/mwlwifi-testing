@@ -927,7 +927,7 @@ void pcie_tx_flush_amsdu(unsigned long data)
 			amsdu_frag = &sta_info->amsdu_ctrl.frag[i];
 			if (amsdu_frag->num) {
 				if (time_after(jiffies,
-					       (amsdu_frag->jiffies + 1))) {
+					       (amsdu_frag->jiffies + HZ))) {
 					if (pcie_tx_available(priv, i)) {
 						pcie_tx_skb(priv, i,
 							    amsdu_frag->skb);

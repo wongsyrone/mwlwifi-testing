@@ -1619,9 +1619,11 @@ static void pcie_remove(struct pci_dev *pdev)
 		usleep_range(1000, 2000);
 	vendor_cmd_basic_event(hw->wiphy, MWL_VENDOR_EVENT_DRIVER_START_REMOVE);
 	mwl_deinit_hw(hw);
-	pci_set_drvdata(pdev, NULL);
 	mwl_free_hw(hw);
+	pci_release_regions(pdev);
+	pci_clear_master(pdev);
 	pci_disable_device(pdev);
+	// pci_set_drvdata(pdev, NULL);
 }
 
 static struct pci_driver mwl_pcie_driver = {
@@ -1631,7 +1633,25 @@ static struct pci_driver mwl_pcie_driver = {
 	.remove   = pcie_remove
 };
 
-module_pci_driver(mwl_pcie_driver);
+static int mwlwifi_pci_init(void)
+{
+	int ret;
+
+	ret = pci_register_driver(&mwl_pcie_driver);
+	if (ret)
+		pr_err("failed to register mwlwifi pci driver: %d\n",
+		       ret);
+
+	return ret;
+}
+module_init(mwlwifi_pci_init);
+
+static void mwlwifi_pci_exit(void)
+{
+	pci_unregister_driver(&mwl_pcie_driver);
+}
+
+module_exit(mwlwifi_pci_exit);
 
 MODULE_DESCRIPTION(PCIE_DRV_DESC);
 MODULE_VERSION(PCIE_DRV_VERSION);

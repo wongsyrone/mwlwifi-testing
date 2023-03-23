@@ -521,8 +521,8 @@ static void mwl_set_vht_caps(struct mwl_priv *priv,
 		highest = cpu_to_le16(1170);
 	}
 
-	band->vht_cap.vht_mcs.rx_highest=highest;
-	band->vht_cap.vht_mcs.tx_highest=highest;
+	band->vht_cap.vht_mcs.rx_highest = highest;
+	band->vht_cap.vht_mcs.tx_highest = highest;
 
 	if (band->vht_cap.cap & (IEEE80211_VHT_CAP_SU_BEAMFORMEE_CAPABLE |
 	    IEEE80211_VHT_CAP_MU_BEAMFORMEE_CAPABLE)) {
@@ -908,7 +908,7 @@ static int mwl_wl_init(struct mwl_priv *priv)
 	} else if (priv->antenna_tx == ANTENNA_TX_2) {
 		hw->wiphy->available_antennas_rx = 0x2;
 		hw->wiphy->available_antennas_tx = 0x2;
-	} else{
+	} else {
 		hw->wiphy->available_antennas_rx = 0x4;
 		hw->wiphy->available_antennas_tx = 0x4;
 	}

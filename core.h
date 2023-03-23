@@ -315,7 +315,7 @@ struct mwl_priv {
 	bool radio_on;
 	bool radio_short_preamble;
 	bool wmm_enabled;
-	struct ieee80211_tx_queue_params wmm_params[SYSADPT_TX_WMM_QUEUES];
+	struct ieee80211_tx_queue_params wmm_params[SYSADPT_TOTAL_TX_QUEUES];
 
 	struct work_struct account_handle;
 
@@ -422,7 +422,7 @@ struct mwl_amsdu_frag {
 };
 
 struct mwl_amsdu_ctrl {
-	struct mwl_amsdu_frag frag[SYSADPT_TX_WMM_QUEUES];
+	struct mwl_amsdu_frag frag[SYSADPT_TOTAL_TX_QUEUES];
 	u8 cap;
 };
 

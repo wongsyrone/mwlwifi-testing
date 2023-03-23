@@ -525,8 +525,8 @@ void pcie_tx_xmit_scheduler(struct mwl_priv *priv,
 				mwl_vif->seqno += 0x10;
 	}
 
-	// if (skb_queue_len(&pcie_priv->txq[desc_num]) > pcie_priv->txq_limit)
-		// ieee80211_stop_queue(priv->hw, (desc_num + SYSADPT_TX_WMM_QUEUES - 2 * (desc_num % SYSADPT_TX_WMM_QUEUES) - 1));
+	if (skb_queue_len(&pcie_priv->txq[desc_num]) > pcie_priv->txq_limit)
+		ieee80211_stop_queue(priv->hw, SYSADPT_TX_WMM_QUEUES - desc_num - 1);
 
 	// wiphy_debug(priv->hw->wiphy,"pcie_tx_xmit_scheduler desc_num:%d skb:%p\n", desc_num, skb);
 
@@ -755,7 +755,7 @@ next:
 static void pcie_non_pfu_tx_done(struct mwl_priv *priv)
 {
 	struct pcie_priv *pcie_priv = priv->hif.priv;
-	int num = 8;//SYSADPT_TOTAL_TX_QUEUES;
+	int num = SYSADPT_TX_WMM_QUEUES;
 	struct pcie_desc_data *desc;
 	struct pcie_tx_hndl *tx_hndl;
 	struct pcie_tx_desc *tx_desc;
@@ -880,7 +880,7 @@ void pcie_tx_skbs(unsigned long data)
 	struct ieee80211_hw *hw = (struct ieee80211_hw *)data;
 	struct mwl_priv *priv = hw->priv;
 	struct pcie_priv *pcie_priv = priv->hif.priv;
-	int num = 8;//SYSADPT_TOTAL_TX_QUEUES;
+	int num = SYSADPT_TX_WMM_QUEUES;
 	struct sk_buff *tx_skb;
 
 	spin_lock_bh(&pcie_priv->tx_desc_lock);
@@ -892,7 +892,6 @@ void pcie_tx_skbs(unsigned long data)
 			tx_skb = skb_dequeue(&pcie_priv->txq[num]);
 			if (!tx_skb)
 				continue;
-			wiphy_debug(priv->hw->wiphy,"pcie_tx_skbs desc_num:%d skb:%p, revert: %d\n", num, tx_skb, (num + SYSADPT_TX_WMM_QUEUES - 2 * (num % SYSADPT_TX_WMM_QUEUES) - 1));
 
 			if (tx_skb) {
 				if (pcie_tx_available(priv, num))
@@ -907,9 +906,9 @@ void pcie_tx_skbs(unsigned long data)
 		    pcie_priv->txq_wake_threshold) {
 			int queue;
 
-			queue = num + SYSADPT_TX_WMM_QUEUES - 2 * (num % SYSADPT_TX_WMM_QUEUES) - 1;
-			// if (ieee80211_queue_stopped(hw, queue))
-			// 	ieee80211_wake_queue(hw, queue);
+			queue = SYSADPT_TX_WMM_QUEUES - num - 1;
+			if (ieee80211_queue_stopped(hw, queue))
+				ieee80211_wake_queue(hw, queue);
 		}
 	}
 	spin_unlock_bh(&pcie_priv->tx_desc_lock);
@@ -928,7 +927,7 @@ void pcie_tx_flush_amsdu(unsigned long data)
 	list_for_each_entry(sta_info, &priv->sta_list, list) {
 		spin_lock(&pcie_priv->tx_desc_lock);
 		spin_lock(&sta_info->amsdu_lock);
-		for (i = 0; i < SYSADPT_TOTAL_TX_QUEUES; i++) {
+		for (i = 0; i < SYSADPT_TX_WMM_QUEUES; i++) {
 			amsdu_frag = &sta_info->amsdu_ctrl.frag[i];
 			if (amsdu_frag->num) {
 				if (time_after(jiffies,
@@ -1066,7 +1065,6 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 
 	index = SYSADPT_TX_WMM_QUEUES - index - 1;
 	txpriority = index;
-	index = mwl_vif->macid % SYSADPT_GROUPS_TX_QUEUES * SYSADPT_TX_WMM_QUEUES + index;
 
 	if (sta && sta->ht_cap.ht_supported && !eapol_frame &&
 	    ieee80211_is_data_qos(wh->frame_control)) {
@@ -1254,7 +1252,7 @@ void pcie_tx_del_sta_amsdu_pkts(struct ieee80211_hw *hw,
 	struct mwl_amsdu_frag *amsdu_frag;
 
 	spin_lock_bh(&sta_info->amsdu_lock);
-	for (num = 0; num < SYSADPT_TOTAL_TX_QUEUES; num++) {
+	for (num = 0; num < SYSADPT_TX_WMM_QUEUES; num++) {
 		amsdu_frag = &sta_info->amsdu_ctrl.frag[num];
 		if (amsdu_frag->num) {
 			amsdu_frag->num = 0;

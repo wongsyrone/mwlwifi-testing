@@ -240,7 +240,6 @@ static int mwl_mac80211_add_interface(struct ieee80211_hw *hw,
 		mwl_fwcmd_bss_start(hw, vif, true);
 		mwl_fwcmd_set_infra_mode(hw, vif);
 		mwl_fwcmd_set_mac_addr_client(hw, vif, vif->addr);
-		vif->cab_queue = IEEE80211_INVAL_HW_QUEUE;
 		break;
 	default:
 		return -EINVAL;
@@ -674,13 +673,13 @@ static int mwl_mac80211_conf_tx(struct ieee80211_hw *hw,
 				const struct ieee80211_tx_queue_params *params)
 {
 	struct mwl_priv *priv = hw->priv;
-	struct mwl_vif *mwl_vif = mwl_dev_get_vif(vif);
 	int rc = 0;
 
 	if (WARN_ON(queue > SYSADPT_TX_WMM_QUEUES - 1))
 		return -EINVAL;
 
-	memcpy(&priv->wmm_params[(mwl_vif->macid % SYSADPT_GROUPS_TX_QUEUES * SYSADPT_TX_WMM_QUEUES + queue)], params, sizeof(*params));
+	wiphy_debug(hw->wiphy, "mwl_mac80211_conf_tx queue: %d\n",queue);
+	memcpy(&priv->wmm_params[queue], params, sizeof(*params));
 
 	if (!priv->wmm_enabled) {
 		rc = mwl_fwcmd_set_wmm_mode(hw, true);
@@ -688,25 +687,13 @@ static int mwl_mac80211_conf_tx(struct ieee80211_hw *hw,
 	}
 
 	if (!rc) {
-		int q = mwl_vif->macid % SYSADPT_GROUPS_TX_QUEUES * SYSADPT_TX_WMM_QUEUES + SYSADPT_TX_WMM_QUEUES - 1 - queue;
-		wiphy_debug(hw->wiphy, "mwl_mac80211_conf_tx queue: %d, wmm[%d], q=%d\n",queue,
-		(mwl_vif->macid % SYSADPT_GROUPS_TX_QUEUES * SYSADPT_TX_WMM_QUEUES + queue),
-		q
-		);
+		int q = SYSADPT_TX_WMM_QUEUES - 1 - queue;
 
 		rc = mwl_fwcmd_set_edca_params(hw, q,
 					       params->cw_min, params->cw_max,
 					       params->aifs, params->txop);
 	}
 
-	// vif->hw_queue[IEEE80211_AC_VO] = (mwl_vif->macid * SYSADPT_TX_WMM_QUEUES) % TOTAL_HW_QUEUES + 3;
-	// vif->hw_queue[IEEE80211_AC_VI] = (mwl_vif->macid * SYSADPT_TX_WMM_QUEUES) % TOTAL_HW_QUEUES + 2;
-	// vif->hw_queue[IEEE80211_AC_BE] = (mwl_vif->macid * SYSADPT_TX_WMM_QUEUES) % TOTAL_HW_QUEUES + 1;
-	// vif->hw_queue[IEEE80211_AC_BK] = (mwl_vif->macid * SYSADPT_TX_WMM_QUEUES) % TOTAL_HW_QUEUES + 0;
-	// vif->hw_queue[IEEE80211_AC_VO] = mwl_vif->macid % 2 + 3;
-	// vif->hw_queue[IEEE80211_AC_VI] = mwl_vif->macid % 2 + 2;
-	// vif->hw_queue[IEEE80211_AC_BE] = mwl_vif->macid % 2 + 1;
-	// vif->hw_queue[IEEE80211_AC_BK] = mwl_vif->macid % 2 + 0;
 	return rc;
 }
 

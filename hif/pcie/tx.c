@@ -508,20 +508,6 @@ void pcie_tx_xmit_scheduler(struct mwl_priv *priv,
 			    struct sk_buff *skb)
 {
 	struct pcie_priv *pcie_priv = priv->hif.priv;
-	struct ieee80211_tx_info *tx_info = IEEE80211_SKB_CB(skb);
-	struct mwl_vif *mwl_vif = mwl_dev_get_vif(tx_info->control.vif);
-	struct ieee80211_hdr *wh = (struct ieee80211_hdr *)skb->data;
-
-	if (tx_info->flags  & IEEE80211_TX_CTL_ASSIGN_SEQ) {
-		wh->seq_ctrl &= cpu_to_le16(IEEE80211_SCTL_FRAG);
-		wh->seq_ctrl |= cpu_to_le16(mwl_vif->seqno);
-
-		if (mwl_vif->seqno == 0)
-			mwl_vif->seqno = 0x1000;
-
-		if (tx_info->flags & IEEE80211_TX_CTL_FIRST_FRAGMENT)
-				mwl_vif->seqno += 0x10;
-	}
 
 	if (skb_queue_len(&pcie_priv->txq[desc_num]) > pcie_priv->txq_limit)
 		ieee80211_stop_queue(priv->hw, SYSADPT_TX_WMM_QUEUES - desc_num - 1);
@@ -1147,6 +1133,18 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 	tx_ctrl->type = (mgmtframe ? IEEE_TYPE_MANAGEMENT : IEEE_TYPE_DATA);
 	tx_ctrl->qos_ctrl = qos;
 	tx_ctrl->xmit_control = xmitcontrol;
+
+	if (tx_info->flags  & IEEE80211_TX_CTL_ASSIGN_SEQ) {
+		wh->seq_ctrl &= cpu_to_le16(IEEE80211_SCTL_FRAG);
+		wh->seq_ctrl |= cpu_to_le16(mwl_vif->seqno);
+
+		if (mwl_vif->seqno == 0)
+			mwl_vif->seqno = 0x1000;
+
+		if (tx_info->flags & IEEE80211_TX_CTL_FIRST_FRAGMENT)
+				mwl_vif->seqno += 0x10;
+	}
+
 	pcie_tx_xmit_scheduler(priv, index, skb);
 
 

@@ -936,7 +936,7 @@ static void pcie_timer_routine_ndp(struct ieee80211_hw *hw)
 {
 	struct mwl_priv *priv = hw->priv;
 	struct pcie_priv *pcie_priv = priv->hif.priv;
-	int num = SYSADPT_TX_WMM_QUEUES;
+	int num = SYSADPT_TX_WK_QUEUES;
 	static int cnt;
 
 	if (!pcie_priv->is_tx_schedule) {

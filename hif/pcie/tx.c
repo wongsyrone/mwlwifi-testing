@@ -1070,20 +1070,16 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 					TOTAL_HW_QUEUES;
 
 
-				if (txpriority >= SYSADPT_TX_WMM_QUEUES) {
-					stream->desc_num = index;
-					spin_unlock_bh(&priv->stream_lock);
-					tx_ctrl = (struct pcie_tx_ctrl *)tx_info->driver_data;
-					tx_ctrl->sta = (void *)sta;
-					tx_ctrl->tx_priority = txpriority;
-					tx_ctrl->type = (mgmtframe ? IEEE_TYPE_MANAGEMENT : IEEE_TYPE_DATA);
-					tx_ctrl->qos_ctrl = qos;
-					tx_ctrl->xmit_control = xmitcontrol;
-					skb = pcie_tx_do_amsdu(priv, index, skb, tx_info);
-					if (skb)
-						pcie_tx_xmit_scheduler(priv, index, skb);
-					return;
-				}
+				stream->desc_num = index;
+				spin_unlock_bh(&priv->stream_lock);
+				tx_ctrl = (struct pcie_tx_ctrl *)tx_info->driver_data;
+				tx_ctrl->sta = (void *)sta;
+				tx_ctrl->tx_priority = txpriority;
+				tx_ctrl->type = (mgmtframe ? IEEE_TYPE_MANAGEMENT : IEEE_TYPE_DATA);
+				tx_ctrl->qos_ctrl = qos;
+				tx_ctrl->xmit_control = xmitcontrol;
+				pcie_tx_xmit_scheduler(priv, index, skb);
+				return;
 
 			} else if (stream->state == AMPDU_STREAM_NEW) {
 				/* We get here if the driver sends us packets

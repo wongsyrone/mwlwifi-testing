@@ -688,6 +688,8 @@ static int mwl_mac80211_conf_tx(struct ieee80211_hw *hw,
 	if (!rc) {
 		int q = SYSADPT_TX_WMM_QUEUES - 1 - queue;
 
+		wiphy_debug(hw->wiphy, "queue:%d, q:%d,cw_min:%d,cw_max:%d,aifs:%d,txop:%d\n",queue,q,params->cw_min, params->cw_max,
+					       params->aifs, params->txop);
 		rc = mwl_fwcmd_set_edca_params(hw, q,
 					       params->cw_min, params->cw_max,
 					       params->aifs, params->txop);

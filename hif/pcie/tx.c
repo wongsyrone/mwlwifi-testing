@@ -986,7 +986,6 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 		pkt_type = be16_to_cpu(*((__be16 *)
 			&skb->data[ieee80211_hdrlen(wh->frame_control) + 6]));
 		if (pkt_type == ETH_P_PAE) {
-			index = IEEE80211_AC_VO;
 			eapol_frame = true;
 		}
 		if (sta) {
@@ -1046,7 +1045,6 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 	}
 
 	index = SYSADPT_TX_WMM_QUEUES - index - 1;
-	txpriority = index;
 
 	if (sta && sta->ht_cap.ht_supported && !eapol_frame &&
 	    ieee80211_is_data_qos(wh->frame_control)) {
@@ -1065,25 +1063,16 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 					return;
 				}
 
-				txpriority =
-					(SYSADPT_TX_WMM_QUEUES + stream->idx) %
-					TOTAL_HW_QUEUES;
-
-
-				if (txpriority >= SYSADPT_TX_WMM_QUEUES) {
-					stream->desc_num = index;
-					spin_unlock_bh(&priv->stream_lock);
-					tx_ctrl = (struct pcie_tx_ctrl *)tx_info->driver_data;
-					tx_ctrl->sta = (void *)sta;
-					tx_ctrl->tx_priority = txpriority;
-					tx_ctrl->type = (mgmtframe ? IEEE_TYPE_MANAGEMENT : IEEE_TYPE_DATA);
-					tx_ctrl->qos_ctrl = qos;
-					tx_ctrl->xmit_control = xmitcontrol;
-					skb = pcie_tx_do_amsdu(priv, index, skb, tx_info);
-					if (skb)
-						pcie_tx_xmit_scheduler(priv, index, skb);
-					return;
-				}
+				stream->desc_num = index;
+				spin_unlock_bh(&priv->stream_lock);
+				tx_ctrl = (struct pcie_tx_ctrl *)tx_info->driver_data;
+				tx_ctrl->sta = (void *)sta;
+				tx_ctrl->tx_priority =  (SYSADPT_TX_WMM_QUEUES + stream->idx) % TOTAL_HW_QUEUES;
+				tx_ctrl->type = (mgmtframe ? IEEE_TYPE_MANAGEMENT : IEEE_TYPE_DATA);
+				tx_ctrl->qos_ctrl = qos;
+				tx_ctrl->xmit_control = xmitcontrol;
+				pcie_tx_xmit_scheduler(priv, index, skb);
+				return;
 
 			} else if (stream->state == AMPDU_STREAM_NEW) {
 				/* We get here if the driver sends us packets
@@ -1129,7 +1118,7 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 
 	tx_ctrl = (struct pcie_tx_ctrl *)tx_info->driver_data;
 	tx_ctrl->sta = (void *)sta;
-	tx_ctrl->tx_priority = txpriority;
+	tx_ctrl->tx_priority = index;
 	tx_ctrl->type = (mgmtframe ? IEEE_TYPE_MANAGEMENT : IEEE_TYPE_DATA);
 	tx_ctrl->qos_ctrl = qos;
 	tx_ctrl->xmit_control = xmitcontrol;

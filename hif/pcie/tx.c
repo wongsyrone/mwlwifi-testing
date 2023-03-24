@@ -486,7 +486,7 @@ static inline void pcie_tx_skb(struct mwl_priv *priv, int desc_num,
 		       pcie_priv->iobase1 + MACREG_REG_H2A_INTERRUPT_EVENTS);
 		pcie_priv->desc_data[desc_num].pnext_tx_hndl = tx_hndl->pnext;
 		pcie_priv->fw_desc_cnt[desc_num]++;
-		// wiphy_debug(priv->hw->wiphy,"pcie_tx_skb 2 index:%d skb:%p\n", desc_num, tx_skb);
+		if(desc_num > 3) wiphy_debug(priv->hw->wiphy,"pcie_tx_skb index:%d skb:%p\n", desc_num, tx_skb);
 
 	}
 }
@@ -499,10 +499,11 @@ void pcie_tx_xmit_scheduler(struct mwl_priv *priv,
 	struct pcie_priv *pcie_priv = priv->hif.priv;
 
 	if (skb_queue_len(&pcie_priv->txq[desc_num]) > pcie_priv->txq_limit) {
+		// wiphy_debug(priv->hw->wiphy,"pcie_tx_xmit_scheduler desc_num:%d skb:%p\n", desc_num, skb);
+
 		ieee80211_stop_queue(priv->hw, desc_num + SYSADPT_TX_WMM_QUEUES - 2 * (desc_num % SYSADPT_TX_WMM_QUEUES) - 1);
 	}
 
-	// wiphy_debug(priv->hw->wiphy,"pcie_tx_xmit_scheduler desc_num:%d skb:%p\n", desc_num, skb);
 
 	skb_queue_tail(&pcie_priv->txq[desc_num], skb);
 
@@ -722,7 +723,7 @@ static void pcie_pfu_tx_done(struct mwl_priv *priv)
 static void pcie_non_pfu_tx_done(struct mwl_priv *priv)
 {
 	struct pcie_priv *pcie_priv = priv->hif.priv;
-	int num = SYSADPT_TX_WK_QUEUES;//SYSADPT_TOTAL_TX_QUEUES;
+	int num = SYSADPT_TX_WK_QUEUES;//SYSADPT_TX_WK_QUEUES;
 	struct pcie_desc_data *desc;
 	struct pcie_tx_hndl *tx_hndl;
 	struct pcie_tx_desc *tx_desc;
@@ -738,6 +739,14 @@ static void pcie_non_pfu_tx_done(struct mwl_priv *priv)
 		desc = &pcie_priv->desc_data[num];
 		tx_hndl = desc->pstale_tx_hndl;
 		tx_desc = tx_hndl->pdesc;
+		if(num > 3 && tx_hndl->psk_buff != NULL ){
+			// if (tx_desc->status & cpu_to_le32(EAGLE_TXD_STATUS_FW_OWNED))
+			// 	wiphy_debug(priv->hw->wiphy,"pfu OWNED index:%d skb:%p\n", num, tx_hndl->psk_buff);
+			if (tx_hndl->pnext->pdesc->status & cpu_to_le32(EAGLE_TXD_STATUS_OK))
+				wiphy_debug(priv->hw->wiphy,"pfu OK index:%d skb:%p\n", num, tx_hndl->psk_buff);
+
+
+		}
 
 		if ((tx_desc->status & cpu_to_le32(EAGLE_TXD_STATUS_FW_OWNED)) &&
 		    (tx_hndl->pnext->pdesc->status & cpu_to_le32(EAGLE_TXD_STATUS_OK)))
@@ -762,6 +771,8 @@ static void pcie_non_pfu_tx_done(struct mwl_priv *priv)
 
 			skb_get(done_skb);
 
+			if(num>3)
+				wiphy_debug(priv->hw->wiphy,"pfu num:%d skb:%p\n", num, done_skb);
 			dma_data = (struct pcie_dma_data *)done_skb->data;
 			wh = &dma_data->wh;
 
@@ -857,6 +868,8 @@ void pcie_tx_skbs(unsigned long data)
 			tx_skb = skb_dequeue(&pcie_priv->txq[num]);
 			if (!tx_skb)
 				continue;
+			// if(num > 3)
+			// 	wiphy_debug(priv->hw->wiphy,"pcie_tx_skbs desc_num:%d skb:%p, revert: %d\n", num, tx_skb, num + SYSADPT_TX_WMM_QUEUES - 2 * (num % SYSADPT_TX_WMM_QUEUES) - 1);
 
 			if (tx_skb) {
 				if (pcie_tx_available(priv, num))

@@ -369,7 +369,6 @@ static inline void pcie_tx_skb(struct mwl_priv *priv, int desc_num,
 	struct pcie_tx_desc *tx_desc;
 	struct ieee80211_sta *sta;
 	struct ieee80211_vif *vif;
-	struct mwl_sta *sta_info;
 	struct mwl_vif *mwl_vif;
 	bool ccmp = false;
 	struct pcie_pfu_dma_data *pfu_dma_data;
@@ -382,6 +381,7 @@ static inline void pcie_tx_skb(struct mwl_priv *priv, int desc_num,
 
 	tx_info = IEEE80211_SKB_CB(tx_skb);
 	tx_ctrl = (struct pcie_tx_ctrl *)tx_info->driver_data;
+	sta = (struct ieee80211_sta *)tx_ctrl->sta;
 	vif = (struct ieee80211_vif *)tx_info->control.vif;
 	mwl_vif = mwl_dev_get_vif(vif);
 
@@ -398,7 +398,6 @@ static inline void pcie_tx_skb(struct mwl_priv *priv, int desc_num,
 		dma_data = (struct pcie_dma_data *)tx_skb->data;
 	}
 	wh = &dma_data->wh;
-	tx_desc->data_rate = 0;
 
 	if (ieee80211_is_probe_resp(wh->frame_control) &&
 	    priv->dump_probe)
@@ -427,9 +426,9 @@ static inline void pcie_tx_skb(struct mwl_priv *priv, int desc_num,
 					INCREASE_IV(mwl_vif->iv16,
 						    mwl_vif->iv32);
 				} else {
-					sta = (struct ieee80211_sta *)tx_ctrl->sta;
+					struct mwl_sta *sta_info;
+
 					sta_info = mwl_dev_get_sta(sta);
-					tx_desc->data_rate = sta_info->tx_rate_info;
 
 					pcie_tx_add_ccmp_hdr(dma_data->data,
 							     0,
@@ -450,6 +449,7 @@ static inline void pcie_tx_skb(struct mwl_priv *priv, int desc_num,
 	tx_desc->qos_ctrl = cpu_to_le16(tx_ctrl->qos_ctrl);
 	tx_desc->pkt_len = cpu_to_le16(tx_skb->len);
 	tx_desc->packet_info = 0;
+	tx_desc->data_rate = 0;
 	tx_desc->type = tx_ctrl->type;
 	tx_desc->xmit_control = tx_ctrl->xmit_control;
 	tx_desc->sap_pkt_info = 0;

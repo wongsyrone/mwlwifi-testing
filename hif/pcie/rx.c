@@ -502,7 +502,8 @@ void pcie_rx_recv(unsigned long data)
 
 		wh = (struct ieee80211_hdr *)prx_skb->data;
 
-		if (ieee80211_is_data_qos(wh->frame_control)) {
+		if (ieee80211_is_data_qos(wh->frame_control) ||
+		    ieee80211_is_qos_nullfunc(wh->frame_control)) {
 			qc = ieee80211_get_qos_ctl(wh);
 			_data = prx_skb->data +
 				ieee80211_hdrlen(wh->frame_control) + 6;

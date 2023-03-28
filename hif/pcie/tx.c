@@ -86,19 +86,14 @@ static int pcie_tx_ring_alloc(struct mwl_priv *priv)
 	for (num = 0; num < PCIE_NUM_OF_DESC_DATA; num++) {
 		desc = &pcie_priv->desc_data[num];
 
-		desc->ptx_ring = (struct pcie_tx_desc *)
-			(mem + num * MAX_NUM_TX_RING_BYTES);
+		desc->ptx_ring = (struct pcie_tx_desc *) (mem + num * MAX_NUM_TX_RING_BYTES);
 
-		desc->pphys_tx_ring = (dma_addr_t)
-			((u32)pcie_priv->desc_data[0].pphys_tx_ring +
-			num * MAX_NUM_TX_RING_BYTES);
+		desc->pphys_tx_ring = (dma_addr_t) ((u32)pcie_priv->desc_data[0].pphys_tx_ring + num * MAX_NUM_TX_RING_BYTES);
 
-		memset(desc->ptx_ring, 0x00,
-		       MAX_NUM_TX_RING_BYTES);
+		memset(desc->ptx_ring, 0x00, MAX_NUM_TX_RING_BYTES);
 	}
 
-	mem = kzalloc(MAX_NUM_TX_HNDL_BYTES * PCIE_NUM_OF_DESC_DATA,
-		      GFP_KERNEL);
+	mem = kzalloc(MAX_NUM_TX_HNDL_BYTES * PCIE_NUM_OF_DESC_DATA, GFP_KERNEL);
 
 	if (!mem) {
 		wiphy_err(priv->hw->wiphy, "cannot alloc mem\n");
@@ -113,8 +108,7 @@ static int pcie_tx_ring_alloc(struct mwl_priv *priv)
 	for (num = 0; num < PCIE_NUM_OF_DESC_DATA; num++) {
 		desc = &pcie_priv->desc_data[num];
 
-		desc->tx_hndl = (struct pcie_tx_hndl *)
-			(mem + num * MAX_NUM_TX_HNDL_BYTES);
+		desc->tx_hndl = (struct pcie_tx_hndl *) (mem + num * MAX_NUM_TX_HNDL_BYTES);
 	}
 
 	return 0;
@@ -187,23 +181,16 @@ static int pcie_tx_ring_init(struct mwl_priv *priv)
 		desc = &pcie_priv->desc_data[num];
 
 		if (desc->ptx_ring) {
+			wiphy_debug(priv->hw->wiphy, "pcie_tx_ring_init ptx_ring %d\n",num);
 			for (i = 0; i < PCIE_MAX_NUM_TX_DESC; i++) {
-				desc->ptx_ring[i].status =
-					cpu_to_le32(EAGLE_TXD_STATUS_IDLE);
-				desc->ptx_ring[i].pphys_next =
-					cpu_to_le32((u32)desc->pphys_tx_ring +
-					((i + 1) *
-					sizeof(struct pcie_tx_desc)));
-				desc->tx_hndl[i].pdesc =
-					&desc->ptx_ring[i];
+				desc->ptx_ring[i].status = cpu_to_le32(EAGLE_TXD_STATUS_IDLE);
+				desc->ptx_ring[i].pphys_next = cpu_to_le32((u32)desc->pphys_tx_ring + ((i + 1) * sizeof(struct pcie_tx_desc)));
+				desc->tx_hndl[i].pdesc = &desc->ptx_ring[i];
 				if (i < PCIE_MAX_NUM_TX_DESC - 1)
-					desc->tx_hndl[i].pnext =
-						&desc->tx_hndl[i + 1];
+					desc->tx_hndl[i].pnext = &desc->tx_hndl[i + 1];
 			}
-			desc->ptx_ring[PCIE_MAX_NUM_TX_DESC - 1].pphys_next =
-				cpu_to_le32((u32)desc->pphys_tx_ring);
-			desc->tx_hndl[PCIE_MAX_NUM_TX_DESC - 1].pnext =
-				&desc->tx_hndl[0];
+			desc->ptx_ring[PCIE_MAX_NUM_TX_DESC - 1].pphys_next = cpu_to_le32((u32)desc->pphys_tx_ring);
+			desc->tx_hndl[PCIE_MAX_NUM_TX_DESC - 1].pnext = &desc->tx_hndl[0];
 
 			desc->pstale_tx_hndl = &desc->tx_hndl[0];
 			desc->pnext_tx_hndl  = &desc->tx_hndl[0];
@@ -751,10 +738,8 @@ static void pcie_non_pfu_tx_done(struct mwl_priv *priv)
 		tx_hndl = desc->pstale_tx_hndl;
 		tx_desc = tx_hndl->pdesc;
 
-		if ((tx_desc->status &
-		    cpu_to_le32(EAGLE_TXD_STATUS_FW_OWNED)) &&
-		    (tx_hndl->pnext->pdesc->status &
-		    cpu_to_le32(EAGLE_TXD_STATUS_OK)))
+		if ((tx_desc->status & cpu_to_le32(EAGLE_TXD_STATUS_FW_OWNED)) &&
+		    (tx_hndl->pnext->pdesc->status & cpu_to_le32(EAGLE_TXD_STATUS_OK)))
 			tx_desc->status = cpu_to_le32(EAGLE_TXD_STATUS_OK);
 
 		while (tx_hndl &&

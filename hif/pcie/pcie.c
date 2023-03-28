@@ -245,52 +245,37 @@ static int pcie_init(struct ieee80211_hw *hw)
 	}
 	ether_addr_copy(&priv->hw_data.mac_addr[0],
 			get_hw_spec->permanent_addr);
-	pcie_priv->desc_data[0].wcb_base =
-		le32_to_cpu(get_hw_spec->wcb_base0) & 0x0000ffff;
+	pcie_priv->desc_data[0].wcb_base = le32_to_cpu(get_hw_spec->wcb_base0) & 0x0000ffff;
 	for (i = 1; i < SYSADPT_TOTAL_TX_QUEUES; i++)
-		pcie_priv->desc_data[i].wcb_base =
-			le32_to_cpu(get_hw_spec->wcb_base[i - 1]) & 0x0000ffff;
-	pcie_priv->desc_data[0].rx_desc_read =
-		le32_to_cpu(get_hw_spec->rxpd_rd_ptr) & 0x0000ffff;
-	pcie_priv->desc_data[0].rx_desc_write =
-		le32_to_cpu(get_hw_spec->rxpd_wr_ptr) & 0x0000ffff;
+		pcie_priv->desc_data[i].wcb_base = le32_to_cpu(get_hw_spec->wcb_base[i - 1]) & 0x0000ffff;
+	pcie_priv->desc_data[0].rx_desc_read = le32_to_cpu(get_hw_spec->rxpd_rd_ptr) & 0x0000ffff;
+	pcie_priv->desc_data[0].rx_desc_write = le32_to_cpu(get_hw_spec->rxpd_wr_ptr) & 0x0000ffff;
 	priv->hw_data.fw_release_num = le32_to_cpu(get_hw_spec->fw_release_num);
 	priv->hw_data.hw_version = get_hw_spec->version;
 	if (priv->chip_type != MWL8997) {
-		writel(pcie_priv->desc_data[0].pphys_tx_ring,
-		       pcie_priv->iobase0 + pcie_priv->desc_data[0].wcb_base);
+		writel(pcie_priv->desc_data[0].pphys_tx_ring, pcie_priv->iobase0 + pcie_priv->desc_data[0].wcb_base);
 		for (i = 1; i < SYSADPT_TOTAL_TX_QUEUES; i++)
-			writel(pcie_priv->desc_data[i].pphys_tx_ring,
-			       pcie_priv->iobase0 +
-			       pcie_priv->desc_data[i].wcb_base);
+			writel(pcie_priv->desc_data[i].pphys_tx_ring, pcie_priv->iobase0 + pcie_priv->desc_data[i].wcb_base);
 	}
-	writel(pcie_priv->desc_data[0].pphys_rx_ring,
-	       pcie_priv->iobase0 + pcie_priv->desc_data[0].rx_desc_read);
-	writel(pcie_priv->desc_data[0].pphys_rx_ring,
-	       pcie_priv->iobase0 + pcie_priv->desc_data[0].rx_desc_write);
+	writel(pcie_priv->desc_data[0].pphys_rx_ring, pcie_priv->iobase0 + pcie_priv->desc_data[0].rx_desc_read);
+	writel(pcie_priv->desc_data[0].pphys_rx_ring, pcie_priv->iobase0 + pcie_priv->desc_data[0].rx_desc_write);
 
 	/* prepare and set HW specifications */
 	memset(&set_hw_spec, 0, sizeof(set_hw_spec));
 	if (priv->chip_type == MWL8997) {
-		set_hw_spec.wcb_base[0] =
-			cpu_to_le32(pcie_priv->txbd_ring_pbase);
-		set_hw_spec.tx_wcb_num_per_queue =
-			cpu_to_le32(PCIE_MAX_TXRX_BD);
+		set_hw_spec.wcb_base[0] = cpu_to_le32(pcie_priv->txbd_ring_pbase);
+		set_hw_spec.tx_wcb_num_per_queue = cpu_to_le32(PCIE_MAX_TXRX_BD);
 		set_hw_spec.num_tx_queues = cpu_to_le32(1);
 		set_hw_spec.features |= HW_SET_PARMS_FEATURES_HOST_PROBE_RESP;
 	} else {
-		set_hw_spec.wcb_base[0] =
-			cpu_to_le32(pcie_priv->desc_data[0].pphys_tx_ring);
+		set_hw_spec.wcb_base[0] = cpu_to_le32(pcie_priv->desc_data[0].pphys_tx_ring);
 		for (i = 1; i < SYSADPT_TOTAL_TX_QUEUES; i++)
-			set_hw_spec.wcb_base[i] = cpu_to_le32(
-				pcie_priv->desc_data[i].pphys_tx_ring);
-		set_hw_spec.tx_wcb_num_per_queue =
-			cpu_to_le32(PCIE_MAX_NUM_TX_DESC);
+			set_hw_spec.wcb_base[i] = cpu_to_le32(pcie_priv->desc_data[i].pphys_tx_ring);
+		set_hw_spec.tx_wcb_num_per_queue = cpu_to_le32(PCIE_MAX_NUM_TX_DESC);
 		set_hw_spec.num_tx_queues = cpu_to_le32(PCIE_NUM_OF_DESC_DATA);
 	}
 	set_hw_spec.total_rx_wcb = cpu_to_le32(PCIE_MAX_NUM_RX_DESC);
-	set_hw_spec.rxpd_wr_ptr =
-		cpu_to_le32(pcie_priv->desc_data[0].pphys_rx_ring);
+	set_hw_spec.rxpd_wr_ptr = cpu_to_le32(pcie_priv->desc_data[0].pphys_rx_ring);
 	rc = mwl_fwcmd_set_hw_specs(hw, &set_hw_spec);
 	if (rc) {
 		wiphy_err(hw->wiphy, "%s: fail to set HW specifications\n",

@@ -519,7 +519,6 @@ static void pcie_timer_routine(struct ieee80211_hw *hw)
 				if (tx_stats->pkts < SYSADPT_AMPDU_PACKET_THRESHOLD) {
 					ieee80211_stop_tx_ba_session(stream->sta, stream->tid);
 					stream->jiffies = jiffies;
-					wiphy_info(hw->wiphy, "Stop BA %pM\n", stream->sta->addr);
 				}
 				tx_stats->pkts = 0;
 				tx_stats->start_time = jiffies;

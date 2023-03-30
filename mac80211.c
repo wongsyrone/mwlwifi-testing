@@ -749,9 +749,6 @@ static int mwl_mac80211_ampdu_action(struct ieee80211_hw *hw,
 	struct mwl_sta *sta_info;
 	struct mwl_vif *mwl_vif = mwl_dev_get_vif(vif);
 
-	wiphy_debug(hw->wiphy, "ampdu macid %i sta %pM tid %u action %d\n",
-		   mwl_vif->macid, sta->addr, tid, action);
-
 	sta_info = mwl_dev_get_sta(sta);
 
 	spin_lock_bh(&priv->stream_lock);

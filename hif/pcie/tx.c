@@ -1143,11 +1143,10 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 
 		if (jiffies - stream->jiffies > 5 * HZ / 1000) {
 			rc = mwl_fwcmd_start_stream(hw, stream);
-			if (rc)
+			if (rc) {
+				wiphy_err(hw->wiphy, "Mac80211 can't start BA %pM\n", stream->sta->addr);
 				mwl_fwcmd_remove_stream(hw, stream);
-			else
-				wiphy_debug(hw->wiphy, "Mac80211 start BA %pM\n",
-					stream->sta->addr);
+			}
 
 			stream->jiffies = jiffies;
 		}

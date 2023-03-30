@@ -761,7 +761,7 @@ static int mwl_wl_init(struct mwl_priv *priv)
 	u8 last_nibble;
 
 	hw->extra_tx_headroom = mwl_hif_get_tx_head_room(hw);
-	hw->queues = SYSADPT_TX_WMM_QUEUES;
+	hw->queues = SYSADPT_TX_WK_QUEUES;
 
 	/* Set rssi values to dBm */
 	ieee80211_hw_set(hw, SIGNAL_DBM);

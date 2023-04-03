@@ -637,43 +637,6 @@ static int pcie_reg_access(struct ieee80211_hw *hw, bool write)
 	return ret;
 }
 
-static int pcie_get_txpower(struct ieee80211_hw *hw,
-			    struct ieee80211_vif *vif,
-			    int *dbm)
-{
-	wiphy_debug(hw->wiphy, "pcie_get_txpower\n");
-	return true;
-}
-static int pcie_sta_set_txpwr(struct ieee80211_hw *hw,
-			      struct ieee80211_vif *vif,
-			      struct ieee80211_sta *sta)
-{
-	wiphy_debug(hw->wiphy, "\npcie_sta_set_txpwr");
-	return true;
-}
-
-static int pcie_conf_tx(struct ieee80211_hw *hw,
-			struct ieee80211_vif *vif, u16 ac,
-			const struct ieee80211_tx_queue_params *params)
-{
-	wiphy_debug(hw->wiphy, "pcie_conf_tx\n");
-	return true;
-}
-static int pcie_set_antenna(struct ieee80211_hw *hw,
-			    u32 tx_ant,
-			    u32 rx_ant)
-{
-	wiphy_debug(hw->wiphy, "pcie_set_antenna\n");
-	return true;
-}
-static int pcie_get_antenna(struct ieee80211_hw *hw,
-			    u32 *tx_ant,
-			    u32 *rx_ant)
-{
-	wiphy_debug(hw->wiphy, "pcie_get_antenna\n");
-	return true;
-}
-
 static struct mwl_hif_ops pcie_hif_ops = {
 	.driver_name           = PCIE_DRV_NAME,
 	.driver_version        = PCIE_DRV_VERSION,
@@ -701,11 +664,6 @@ static struct mwl_hif_ops pcie_hif_ops = {
 	.get_device_node       = pcie_get_device_node,
 	.get_survey            = pcie_get_survey,
 	.reg_access            = pcie_reg_access,
-	.get_txpower           = pcie_get_txpower,
-	.sta_set_txpwr         = pcie_sta_set_txpwr,
-	.conf_tx               = pcie_conf_tx,
-	.set_antenna           = pcie_set_antenna,
-	.get_antenna           = pcie_get_antenna,
 };
 
 static int pcie_init_ndp(struct ieee80211_hw *hw)

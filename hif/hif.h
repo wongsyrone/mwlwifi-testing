@@ -77,16 +77,5 @@ struct mwl_hif_ops {
 			   bool sta_mode, bool set);
 	void (*process_account)(struct ieee80211_hw *hw);
 	int (*mcast_cts)(struct ieee80211_hw *hw, bool enable);
-	int (*get_txpower)(struct ieee80211_hw *hw,
-			   struct ieee80211_vif *vif,
-			   int *dbm);
-	int (*sta_set_txpwr)(struct ieee80211_hw *hw,
-			     struct ieee80211_vif *vif,
-			     struct ieee80211_sta *sta);
-	int (*conf_tx)(struct ieee80211_hw *hw,
-		       struct ieee80211_vif *vif, u16 ac,
-		       const struct ieee80211_tx_queue_params *params);
-	int (*set_antenna)(struct ieee80211_hw *hw, u32 tx_ant, u32 rx_ant);
-	int (*get_antenna)(struct ieee80211_hw *hw, u32 *tx_ant, u32 *rx_ant);
 };
 #endif /* _HIF_H_ */

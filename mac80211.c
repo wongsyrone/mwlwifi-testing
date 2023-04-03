@@ -908,6 +908,31 @@ static void mwl_mac80211_sw_scan_complete(struct ieee80211_hw *hw,
 
 	priv->sw_scanning = false;
 }
+static int mwl_mac80211_get_txpower(struct ieee80211_hw *hw,
+			   struct ieee80211_vif *vif,
+			   int *dbm)
+{
+	wiphy_debug(hw->wiphy, "mwl_mac80211_get_txpower\n");
+	return true;
+}
+static int mwl_mac80211_sta_set_txpwr(struct ieee80211_hw *hw,
+			     struct ieee80211_vif *vif,
+			     struct ieee80211_sta *sta)
+{
+	wiphy_debug(hw->wiphy, "mwl_mac80211_sta_set_txpwr\n");
+	return true;
+}
+
+static int mwl_mac80211_set_antenna(struct ieee80211_hw *hw, u32 tx_ant, u32 rx_ant)
+{
+	wiphy_debug(hw->wiphy, "mwl_mac80211_set_antenna\n");
+	return true;
+}
+static int mwl_mac80211_get_antenna(struct ieee80211_hw *hw, u32 *tx_ant, u32 *rx_ant)
+{
+	wiphy_debug(hw->wiphy, "mwl_mac80211_get_antenna\n");
+	return true;
+}
 
 const struct ieee80211_ops mwl_mac80211_ops = {
 	.tx                 = mwl_mac80211_tx,
@@ -929,4 +954,8 @@ const struct ieee80211_ops mwl_mac80211_ops = {
 	.pre_channel_switch = mwl_mac80211_chnl_switch,
 	.sw_scan_start      = mwl_mac80211_sw_scan_start,
 	.sw_scan_complete   = mwl_mac80211_sw_scan_complete,
+	.get_antenna        = mwl_mac80211_get_antenna,
+	.set_antenna        = mwl_mac80211_set_antenna,
+	.sta_set_txpwr      = mwl_mac80211_sta_set_txpwr,
+	.get_txpower        = mwl_mac80211_get_txpower,
 };

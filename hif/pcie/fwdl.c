@@ -110,7 +110,7 @@ static bool pcie_download_ddr_init(struct mwl_priv *priv)
 	return true;
 }
 
-void pcie_reset(struct ieee80211_hw *hw)
+bool pcie_reset(struct ieee80211_hw *hw)
 {
 	struct mwl_priv *priv = hw->priv;
 	struct pcie_priv *pcie_priv = priv->hif.priv;
@@ -119,10 +119,11 @@ void pcie_reset(struct ieee80211_hw *hw)
 	regval = readl(pcie_priv->iobase1 + MACREG_REG_INT_CODE);
 	if (regval == 0xffffffff) {
 		wiphy_err(priv->hw->wiphy, "adapter does not exist\n");
-		return;
+		return true;
 	}
 
 	writel(ISR_RESET, pcie_priv->iobase1 + MACREG_REG_H2A_INTERRUPT_EVENTS);
+	return false;
 }
 
 int pcie_download_firmware(struct ieee80211_hw *hw)
@@ -136,7 +137,8 @@ int pcie_download_firmware(struct ieee80211_hw *hw)
 	u32 len = 0;
 	u32 fwreadysignature = HOSTCMD_SOFTAP_FWRDY_SIGNATURE;
 
-	pcie_reset(hw);
+	if(pcie_reset(hw))
+		goto err_download;
 
 	/* FW before jumping to boot rom, it will enable PCIe transaction retry,
 	 * wait for boot code to stop it.

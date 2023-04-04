@@ -986,16 +986,21 @@ static inline void pcie_rx_prepare_status(struct mwl_priv *priv, u16 format,
 
 static inline void pcie_rx_remove_dma_header(struct sk_buff *skb, __le16 qos)
 {
-	struct pcie_dma_data *dma_data = (struct pcie_dma_data *)skb->data;
-	int hdrlen = ieee80211_hdrlen(dma_data->wh.frame_control);
-	u8 *data = dma_data->data - hdrlen;
+	struct pcie_dma_data *dma_data;
+	int hdrlen;
 
-	if (ieee80211_is_data_qos(dma_data->wh.frame_control) ||
-		ieee80211_is_qos_nullfunc(dma_data->wh.frame_control))
-		*((__le16 *)(dma_data->data - IEEE80211_QOS_CTL_LEN)) = qos;
+	dma_data = (struct pcie_dma_data *)skb->data;
+	hdrlen = ieee80211_hdrlen(dma_data->wh.frame_control);
 
-	if (data != (u8 *)&dma_data->wh)
-		memmove(data, &dma_data->wh, hdrlen);
+	if (hdrlen != sizeof(dma_data->wh)) {
+		if (ieee80211_is_data_qos(dma_data->wh.frame_control)) {
+			memmove(dma_data->data - hdrlen,
+				&dma_data->wh, hdrlen - 2);
+			*((__le16 *)(dma_data->data - 2)) = qos;
+		} else {
+			memmove(dma_data->data - hdrlen, &dma_data->wh, hdrlen);
+		}
+	}
 
 	if (hdrlen != sizeof(*dma_data))
 		skb_pull(skb, sizeof(*dma_data) - hdrlen);

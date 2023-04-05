@@ -248,6 +248,10 @@ static int mwl_mac80211_add_interface(struct ieee80211_hw *hw,
 	priv->macids_used |= 1 << mwl_vif->macid;
 	spin_lock_bh(&priv->vif_lock);
 	list_add_tail(&mwl_vif->list, &priv->vif_list);
+	if (list_is_singular(&priv->vif_list))
+		priv->single_vif = vif;
+	else
+		priv->single_vif = NULL;
 	spin_unlock_bh(&priv->vif_lock);
 
 	return 0;
@@ -266,6 +270,10 @@ static void mwl_mac80211_remove_vif(struct mwl_priv *priv,
 	priv->macids_used &= ~(1 << mwl_vif->macid);
 	spin_lock_bh(&priv->vif_lock);
 	list_del(&mwl_vif->list);
+	if (list_is_singular(&priv->vif_list))
+		priv->single_vif = vif;
+	else
+		priv->single_vif = NULL;
 	spin_unlock_bh(&priv->vif_lock);
 }
 

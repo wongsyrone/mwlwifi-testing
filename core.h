@@ -286,6 +286,8 @@ struct mwl_priv {
 	u32 macids_used;
 	u32 running_bsses;           /* bitmap of running BSSes             */
 
+	struct ieee80211_vif *single_vif;
+
 	struct {
 		spinlock_t vif_lock;         /* for private interface info  */
 		struct list_head vif_list;   /* List of interfaces.         */

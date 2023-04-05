@@ -383,6 +383,47 @@ void pcie_rx_deinit(struct ieee80211_hw *hw)
 	pcie_rx_ring_free(priv);
 }
 
+static inline bool pcie_wmi_rx_is_decrypted(struct ieee80211_hw *hw,
+					struct ieee80211_hdr *wh)
+{
+
+	struct mwl_priv *priv = hw->priv;
+	struct mwl_vif *mwl_vif;
+	if (!ieee80211_has_protected(wh->frame_control))
+		return false;
+
+
+	/* FW delivers WEP Shared Auth frame with Protected Bit set and
+	 * encrypted payload. However in case of PMF it delivers decrypted
+	 * frames with Protected Bit set.
+	 */
+	if (ieee80211_is_auth(wh->frame_control))
+		return false;
+
+	if(priv->single_vif)
+		mwl_vif = mwl_dev_get_vif(priv->single_vif);
+	else {
+		if (ieee80211_has_tods(wh->frame_control)) {
+			mwl_vif = utils_find_vif_bss(priv, wh->addr1);
+			if (!mwl_vif &&
+			ieee80211_has_a4(wh->frame_control))
+				mwl_vif =
+					utils_find_vif_bss(priv,
+								wh->addr2);
+		} else {
+			mwl_vif = utils_find_vif_bss(priv, wh->addr2);
+		}
+	}
+
+	if ((mwl_vif && mwl_vif->is_hw_crypto_enabled) ||
+	     is_multicast_ether_addr(ieee80211_get_DA(wh)) ||
+	     (ieee80211_is_mgmt(wh->frame_control) &&
+	     !is_multicast_ether_addr(ieee80211_get_DA(wh))))
+		return true;
+
+	return false;
+}
+
 void pcie_rx_recv(unsigned long data)
 {
 	struct ieee80211_hw *hw = (struct ieee80211_hw *)data;
@@ -445,65 +486,45 @@ void pcie_rx_recv(unsigned long data)
 
 		wh = &((struct pcie_dma_data *)prx_skb->data)->wh;
 
-		if (ieee80211_has_protected(wh->frame_control)) {
-			/* Check if hw crypto has been enabled for
-			 * this bss. If yes, set the status flags
-			 * accordingly
+		if (ieee80211_has_protected(wh->frame_control) &&
+		    status->flag & RX_FLAG_MMIC_ERROR) {
+			struct pcie_dma_data *dma_data;
+			/* When MMIC ERROR is encountered
+			 * by the firmware, payload is
+			 * dropped and only 32 bytes of
+			 * mwlwifi Firmware header is sent
+			 * to the host.
+			 *
+			 * We need to add four bytes of
+			 * key information.  In it
+			 * MAC80211 expects keyidx set to
+			 * 0 for triggering Counter
+			 * Measure of MMIC failure.
 			 */
-			if (ieee80211_has_tods(wh->frame_control)) {
-				mwl_vif = utils_find_vif_bss(priv, wh->addr1);
-				if (!mwl_vif &&
-				    ieee80211_has_a4(wh->frame_control))
-					mwl_vif =
-						utils_find_vif_bss(priv,
-								   wh->addr2);
-			} else {
-				mwl_vif = utils_find_vif_bss(priv, wh->addr2);
-			}
 
-			if  ((mwl_vif && mwl_vif->is_hw_crypto_enabled) ||
-			     is_multicast_ether_addr(ieee80211_get_DA(wh)) ||
-			     (ieee80211_is_mgmt(wh->frame_control) &&
-			     !is_multicast_ether_addr(ieee80211_get_DA(wh)))) {
-				/* When MMIC ERROR is encountered
-				 * by the firmware, payload is
-				 * dropped and only 32 bytes of
-				 * mwlwifi Firmware header is sent
-				 * to the host.
-				 *
-				 * We need to add four bytes of
-				 * key information.  In it
-				 * MAC80211 expects keyidx set to
-				 * 0 for triggering Counter
-				 * Measure of MMIC failure.
-				 */
-				if (status->flag & RX_FLAG_MMIC_ERROR) {
-					struct pcie_dma_data *dma_data;
-
-					dma_data = (struct pcie_dma_data *)
-					     prx_skb->data;
-					memset((void *)&dma_data->data, 0, 4);
-					pkt_len += 4;
-				}
-
-				if (!ieee80211_is_auth(wh->frame_control)) {
-					if (priv->chip_type != MWL8997)
-						status->flag |=
-							RX_FLAG_IV_STRIPPED |
-							RX_FLAG_DECRYPTED |
-							RX_FLAG_MMIC_STRIPPED;
-					else
-						status->flag |=
-							RX_FLAG_DECRYPTED |
-							RX_FLAG_MMIC_STRIPPED;
-				}
-			}
+			dma_data = (struct pcie_dma_data *)
+				prx_skb->data;
+			memset((void *)&dma_data->data, 0, 4);
+			pkt_len += 4;
 		}
 
 		skb_put(prx_skb, pkt_len);
 		pcie_rx_remove_dma_header(prx_skb, curr_hndl->pdesc->qos_ctrl);
-
 		wh = (struct ieee80211_hdr *)prx_skb->data;
+
+		if (pcie_wmi_rx_is_decrypted(hw, wh)) {
+			status->flag |= RX_FLAG_DECRYPTED;
+
+			if (!ieee80211_is_robust_mgmt_frame(prx_skb)) {
+				if (priv->chip_type != MWL8997)
+					status->flag |=
+						RX_FLAG_IV_STRIPPED |
+						RX_FLAG_MMIC_STRIPPED;
+				else
+					status->flag |=
+						RX_FLAG_MMIC_STRIPPED;
+			}
+		}
 
 		if (ieee80211_is_data_qos(wh->frame_control) ||
 		    ieee80211_is_qos_nullfunc(wh->frame_control)) {

@@ -445,7 +445,8 @@ static ssize_t mwl_debugfs_vif_read(struct file *file, char __user *ubuf,
 
 	if (!p)
 		return -ENOMEM;
-
+	len += scnprintf(p + len, size - len,
+				"is single vif %s\n", priv->single_vif != NULL ? "true" : "false");
 	spin_lock_bh(&priv->vif_lock);
 	list_for_each_entry(mwl_vif, &priv->vif_list, list) {
 		vif = container_of((void *)mwl_vif, struct ieee80211_vif,

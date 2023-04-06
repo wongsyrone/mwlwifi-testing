@@ -1292,7 +1292,8 @@ int mwl_fwcmd_max_tx_power(struct ieee80211_hw *hw,
 			tmp = priv->max_tx_pow[i];
 		else
 			tmp = priv->target_powers[i];
-		wiphy_debug(hw->wiphy,"mwl_fwcmd_max_tx_power priv->target_powers[%d](%d) > priv->max_tx_pow[%i](%d), tmp=%d\n", i, priv->target_powers[i],i, priv->max_tx_pow[i],tmp);
+		if(priv->debug_mac80211)
+			wiphy_debug(hw->wiphy,"max_tx_power priv->target_powers[%d](%d) > priv->max_tx_pow[%i](%d), tmp=%d\n", i, priv->target_powers[i],i, priv->max_tx_pow[i],tmp);
 		maxtxpow[i] = tmp;
 	}
 
@@ -1507,7 +1508,8 @@ int mwl_fwcmd_tx_power(struct ieee80211_hw *hw,
 			else
 				tmp = priv->target_powers[i];
 		}
-		wiphy_debug(hw->wiphy,"mwl_fwcmd_max_tx_power priv->target_powers[%d](%d) > priv->max_tx_pow[%i](%d), tmp=%d\n", i, priv->target_powers[i],i, priv->max_tx_pow[i],tmp);
+		if(priv->debug_mac80211)
+			wiphy_debug(hw->wiphy,"tx_power priv->target_powers[%d](%d) > priv->max_tx_pow[%i](%d), tmp=%d\n", i, priv->target_powers[i],i, priv->max_tx_pow[i],tmp);
 
 		txpow[i] = tmp;
 	}

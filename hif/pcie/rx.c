@@ -243,6 +243,7 @@ static inline void pcie_rx_status(struct mwl_priv *priv,
 	}
 }
 
+#if defined(CPTCFG_MAC80211_MESH) || defined(CONFIG_MAC80211_MESH)
 static inline bool pcie_rx_process_mesh_amsdu(struct mwl_priv *priv,
 					     struct sk_buff *skb,
 					     struct ieee80211_rx_status *status)
@@ -312,6 +313,7 @@ static inline bool pcie_rx_process_mesh_amsdu(struct mwl_priv *priv,
 
 	return true;
 }
+#endif
 
 static inline int pcie_rx_refill(struct mwl_priv *priv,
 				 struct pcie_rx_hndl *rx_hndl)
@@ -393,6 +395,7 @@ void pcie_rx_recv(unsigned long data)
 	int pkt_len;
 	struct ieee80211_rx_status *status;
 	struct mwl_vif *mwl_vif = NULL;
+	struct sk_buff *monitor_skb;
 	struct ieee80211_hdr *wh;
 	u8 *_data;
 	u8 *qc;
@@ -511,15 +514,32 @@ void pcie_rx_recv(unsigned long data)
 			if (!memcmp(_data, eapol, sizeof(eapol)))
 				*qc |= 7;
 
-			if ((*qc & IEEE80211_QOS_CTL_A_MSDU_PRESENT) && (ieee80211_has_a4(wh->frame_control))) {
+#if defined(CPTCFG_MAC80211_MESH) || defined(CONFIG_MAC80211_MESH)
+			if ((mwl_vif && mwl_vif->type == NL80211_IFTYPE_MESH_POINT &&
+			     *qc & IEEE80211_QOS_CTL_A_MSDU_PRESENT) &&
+			     ieee80211_has_a4(wh->frame_control)) {
 				if (pcie_rx_process_mesh_amsdu(priv, prx_skb, status))
 					goto out;
 			}
+#endif
 		}
 
 		if (ieee80211_is_probe_req(wh->frame_control) &&
 		    priv->dump_probe)
 			wiphy_info(hw->wiphy, "Probe Req: %pM\n", wh->addr2);
+
+		if(status->flag & RX_FLAG_DECRYPTED) {
+			monitor_skb = skb_copy(prx_skb, GFP_ATOMIC);
+			if (monitor_skb) {
+				IEEE80211_SKB_RXCB(monitor_skb)->flag |= RX_FLAG_ONLY_MONITOR;
+				if(status->flag & RX_FLAG_DECRYPTED)
+					((struct ieee80211_hdr *)monitor_skb->data)->frame_control &= ~__cpu_to_le16(IEEE80211_FCTL_PROTECTED);
+
+				ieee80211_rx(hw, monitor_skb);
+
+				status->flag |= RX_FLAG_SKIP_MONITOR;
+			}
+		}
 
 		ieee80211_rx(hw, prx_skb);
 out:

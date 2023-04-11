@@ -339,7 +339,7 @@ static inline void pcie_rx_process_slow_data(struct mwl_priv *priv,
 	struct ieee80211_hdr *wh;
 	struct mwl_vif *mwl_vif = NULL;
 
-	pcie_rx_remove_dma_header(skb, 0);
+	pcie_rx_remove_dma_header(priv, skb, 0);
 	status = IEEE80211_SKB_RXCB(skb);
 	memset(status, 0, sizeof(*status));
 	status->signal = -signal;

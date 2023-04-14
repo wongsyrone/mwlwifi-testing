@@ -33,27 +33,11 @@
 #define DHCPRELEASE     7
 #define DHCPINFORM      8
 
-static inline int utils_tid_to_ac(u8 tid)
-{
-	switch (tid) {
-	case 0:
-	case 3:
-		return IEEE80211_AC_BE;
-	case 1:
-	case 2:
-		return IEEE80211_AC_BK;
-	case 4:
-	case 5:
-		return IEEE80211_AC_VI;
-	case 6:
-	case 7:
-		return IEEE80211_AC_VO;
-	default:
-		break;
-	}
-
-	return -1;
-}
+#define TID_TO_WME_AC(_tid)				\
+	((((_tid) == 0) || ((_tid) == 3)) ? IEEE80211_AC_BE :	\
+	 (((_tid) == 1) || ((_tid) == 2)) ? IEEE80211_AC_BK :	\
+	 (((_tid) == 4) || ((_tid) == 5)) ? IEEE80211_AC_VI :	\
+	 IEEE80211_AC_VO)
 
 static inline void utils_add_basic_rates(int band, struct sk_buff *skb)
 {

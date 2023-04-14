@@ -706,7 +706,7 @@ static void mwl_chnl_switch_event(struct work_struct *work)
 		vif = container_of((void *)mwl_vif, struct ieee80211_vif,
 				   drv_priv);
 
-		if (vif->csa_active)
+		if (vif->bss_conf.csa_active)
 			ieee80211_csa_finish(vif);
 	}
 	spin_unlock_bh(&priv->vif_lock);
@@ -1008,6 +1008,7 @@ struct ieee80211_hw *mwl_alloc_hw(int bus_type,
 	priv->disable_2g = false;
 	priv->disable_5g = false;
 	priv->debug_txpower = true;
+	priv->ra_aid = 1;
 	priv->debug_ampdu = false;
 	priv->debug_xmit_scheduler = false;
 	priv->debug_tx_skb = false;

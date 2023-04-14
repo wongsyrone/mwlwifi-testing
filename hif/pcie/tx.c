@@ -47,6 +47,12 @@
 		(iv32)++; \
 }
 
+#define TID_TO_WME_AC(_tid)				\
+	((((_tid) == 0) || ((_tid) == 3)) ? IEEE80211_AC_BE :	\
+	 (((_tid) == 1) || ((_tid) == 2)) ? IEEE80211_AC_BK :	\
+	 (((_tid) == 4) || ((_tid) == 5)) ? IEEE80211_AC_VI :	\
+	 IEEE80211_AC_VO)
+
 /* Transmission information to transmit a socket buffer. */
 struct pcie_tx_ctrl {
 	void *sta;
@@ -243,11 +249,11 @@ static void pcie_tx_ring_cleanup(struct mwl_priv *priv)
 					    desc->tx_hndl[i].psk_buff->data,
 					    le32_to_cpu(
 					    desc->ptx_ring[i].pkt_ptr));
-				pci_unmap_single(pcie_priv->pdev,
+				dma_unmap_single(&pcie_priv->pdev->dev,
 						 le32_to_cpu(
 						 desc->ptx_ring[i].pkt_ptr),
 						 desc->tx_hndl[i].psk_buff->len,
-						 PCI_DMA_TODEVICE);
+						 DMA_TO_DEVICE);
 				dev_kfree_skb_any(desc->tx_hndl[i].psk_buff);
 				desc->ptx_ring[i].status =
 					cpu_to_le32(EAGLE_TXD_STATUS_IDLE);
@@ -305,10 +311,10 @@ static void pcie_txbd_ring_delete(struct mwl_priv *priv)
 			skb = pcie_priv->tx_buf_list[num];
 			tx_desc = (struct pcie_tx_desc *)skb->data;
 
-			pci_unmap_single(pcie_priv->pdev,
+			dma_unmap_single(&pcie_priv->pdev->dev,
 					 le32_to_cpu(tx_desc->pkt_ptr),
 					 skb->len,
-					 PCI_DMA_TODEVICE);
+					 DMA_TO_DEVICE);
 			dev_kfree_skb_any(skb);
 		}
 		pcie_priv->tx_buf_list[num] = NULL;
@@ -453,9 +459,9 @@ static inline void pcie_tx_skb(struct mwl_priv *priv, int desc_num,
 	tx_desc->type = tx_ctrl->type;
 	tx_desc->xmit_control = tx_ctrl->xmit_control;
 	tx_desc->sap_pkt_info = 0;
-	dma = pci_map_single(pcie_priv->pdev, tx_skb->data,
-			     tx_skb->len, PCI_DMA_TODEVICE);
-	if (pci_dma_mapping_error(pcie_priv->pdev, dma)) {
+	dma = dma_map_single(&pcie_priv->pdev->dev, tx_skb->data,
+			     tx_skb->len, DMA_TO_DEVICE);
+	if (dma_mapping_error(&pcie_priv->pdev->dev, dma)) {
 		dev_kfree_skb_any(tx_skb);
 		wiphy_err(priv->hw->wiphy,
 			  "failed to map pci memory!\n");
@@ -679,10 +685,10 @@ static void pcie_pfu_tx_done(struct mwl_priv *priv)
 			pfu_dma = (struct pcie_pfu_dma_data *)done_skb->data;
 			tx_desc = &pfu_dma->tx_desc;
 			dma_data = &pfu_dma->dma_data;
-			pci_unmap_single(pcie_priv->pdev,
+			dma_unmap_single(&pcie_priv->pdev->dev,
 					 le32_to_cpu(data_buf->paddr),
 					 le16_to_cpu(data_buf->len),
-					 PCI_DMA_TODEVICE);
+					 DMA_TO_DEVICE);
 			tx_desc->pkt_ptr = 0;
 			tx_desc->pkt_len = 0;
 			tx_desc->status = cpu_to_le32(EAGLE_TXD_STATUS_IDLE);
@@ -763,10 +769,10 @@ static void pcie_non_pfu_tx_done(struct mwl_priv *priv)
 		       (tx_desc->status & cpu_to_le32(EAGLE_TXD_STATUS_OK)) &&
 		       (!(tx_desc->status &
 		       cpu_to_le32(EAGLE_TXD_STATUS_FW_OWNED)))) {
-			pci_unmap_single(pcie_priv->pdev,
+			dma_unmap_single(&pcie_priv->pdev->dev,
 					 le32_to_cpu(tx_desc->pkt_ptr),
 					 le16_to_cpu(tx_desc->pkt_len),
-					 PCI_DMA_TODEVICE);
+					 DMA_TO_DEVICE);
 			done_skb = tx_hndl->psk_buff;
 			rate = le32_to_cpu(tx_desc->rate_info);
 			tx_desc->pkt_ptr = 0;
@@ -1038,7 +1044,7 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 			     WLAN_ACTION_ADDBA_REQ)) {
 			capab = le16_to_cpu(mgmt->u.action.u.addba_req.capab);
 			tid = (capab & IEEE80211_ADDBA_PARAM_TID_MASK) >> 2;
-			index = utils_tid_to_ac(tid);
+			index = TID_TO_WME_AC(tid);
 		}
 
 		if (unlikely(ieee80211_is_assoc_req(wh->frame_control)))
@@ -1047,7 +1053,7 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 
 	index = SYSADPT_TX_WMM_QUEUES - index - 1;
 
-	if (sta && sta->ht_cap.ht_supported && !eapol_frame &&
+	if (sta && sta->link[sta->valid_links]->ht_cap.ht_supported && !eapol_frame &&
 	    ieee80211_is_data_qos(wh->frame_control)) {
 		tid = qos & 0xf;
 		pcie_tx_count_packet(sta, tid);

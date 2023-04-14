@@ -131,10 +131,10 @@ static void pcie_tx_ring_cleanup_ndp(struct mwl_priv *priv)
 	for (i = 0; i < MAX_TX_RING_SEND_SIZE; i++) {
 		tx_skb = desc->tx_vbuflist[i];
 		if (tx_skb) {
-			pci_unmap_single(pcie_priv->pdev,
+			dma_unmap_single(&pcie_priv->pdev->dev,
 					 desc->pphys_tx_buflist[i],
 					 tx_skb->len,
-					 PCI_DMA_TODEVICE);
+					 DMA_TO_DEVICE);
 			dev_kfree_skb_any(tx_skb);
 			desc->pphys_tx_buflist[i] = 0;
 			desc->tx_vbuflist[i] = NULL;
@@ -266,9 +266,9 @@ static inline int pcie_tx_skb_ndp(struct mwl_priv *priv,
 			(TXRING_CTRL_TAG_MGMT << TXRING_CTRL_TAG_SHIFT));
 	}
 
-	dma = pci_map_single(pcie_priv->pdev, tx_skb->data,
-			     tx_skb->len, PCI_DMA_TODEVICE);
-	if (pci_dma_mapping_error(pcie_priv->pdev, dma)) {
+	dma = dma_map_single(&pcie_priv->pdev->dev, tx_skb->data,
+			     tx_skb->len, DMA_TO_DEVICE);
+	if (dma_mapping_error(&pcie_priv->pdev->dev, dma)) {
 		dev_kfree_skb_any(tx_skb);
 		wiphy_err(priv->hw->wiphy,
 			  "failed to map pci memory!\n");
@@ -450,10 +450,10 @@ void pcie_tx_done_ndp(struct ieee80211_hw *hw)
 				  "buffer is NULL for tx done ring\n");
 			break;
 		}
-		pci_unmap_single(pcie_priv->pdev,
+		dma_unmap_single(&pcie_priv->pdev->dev,
 				 desc->pphys_tx_buflist[index],
 				 skb->len,
-				 PCI_DMA_TODEVICE);
+				 DMA_TO_DEVICE);
 		desc->pphys_tx_buflist[index] = 0;
 		desc->tx_vbuflist[index] = NULL;
 
@@ -555,7 +555,7 @@ void pcie_tx_xmit_ndp(struct ieee80211_hw *hw,
 			     WLAN_ACTION_ADDBA_REQ)) {
 			capab = le16_to_cpu(mgmt->u.action.u.addba_req.capab);
 			tid = (capab & IEEE80211_ADDBA_PARAM_TID_MASK) >> 2;
-			index = utils_tid_to_ac(tid);
+			index = TID_TO_WME_AC(tid);
 		}
 
 		if (unlikely(ieee80211_is_assoc_req(wh->frame_control)))
@@ -602,7 +602,7 @@ void pcie_tx_xmit_ndp(struct ieee80211_hw *hw,
 		pcie_tx_encapsulate_frame(priv, skb, k_conf, NULL);
 	} else {
 		tid = qos & 0x7;
-		if (sta && sta->ht_cap.ht_supported && !eapol_frame &&
+		if (sta && sta->link[sta->valid_links]->ht_cap.ht_supported && !eapol_frame &&
 		    qos != 0xFFFF) {
 			pcie_tx_count_packet(sta, tid);
 			spin_lock_bh(&priv->stream_lock);

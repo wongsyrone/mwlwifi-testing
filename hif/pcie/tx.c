@@ -174,7 +174,7 @@ static int pcie_txbd_ring_create(struct mwl_priv *priv)
 static int pcie_tx_ring_init(struct mwl_priv *priv)
 {
 	struct pcie_priv *pcie_priv = priv->hif.priv;
-	int num, i;
+	int num, i, pnext;
 	struct pcie_desc_data *desc;
 
 	for (num = 0; num < PCIE_NUM_OF_DESC_DATA; num++) {
@@ -188,22 +188,12 @@ static int pcie_tx_ring_init(struct mwl_priv *priv)
 
 		if (desc->ptx_ring) {
 			for (i = 0; i < PCIE_MAX_NUM_TX_DESC; i++) {
-				desc->ptx_ring[i].status =
-					cpu_to_le32(EAGLE_TXD_STATUS_IDLE);
-				desc->ptx_ring[i].pphys_next =
-					cpu_to_le32((u32)desc->pphys_tx_ring +
-					((i + 1) *
-					sizeof(struct pcie_tx_desc)));
-				desc->tx_hndl[i].pdesc =
-					&desc->ptx_ring[i];
-				if (i < PCIE_MAX_NUM_TX_DESC - 1)
-					desc->tx_hndl[i].pnext =
-						&desc->tx_hndl[i + 1];
+				pnext = (i + 1) % PCIE_MAX_NUM_TX_DESC;
+				desc->ptx_ring[i].status = cpu_to_le32(EAGLE_TXD_STATUS_IDLE);
+				desc->ptx_ring[i].pphys_next = cpu_to_le32((u32)desc->pphys_tx_ring + ((pnext) * sizeof(struct pcie_tx_desc)));
+				desc->tx_hndl[i].pdesc = &desc->ptx_ring[i];
+				desc->tx_hndl[i].pnext = &desc->tx_hndl[pnext];
 			}
-			desc->ptx_ring[PCIE_MAX_NUM_TX_DESC - 1].pphys_next =
-				cpu_to_le32((u32)desc->pphys_tx_ring);
-			desc->tx_hndl[PCIE_MAX_NUM_TX_DESC - 1].pnext =
-				&desc->tx_hndl[0];
 
 			desc->pstale_tx_hndl = &desc->tx_hndl[0];
 			desc->pnext_tx_hndl  = &desc->tx_hndl[0];

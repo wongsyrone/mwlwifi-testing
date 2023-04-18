@@ -243,78 +243,6 @@ static inline void pcie_rx_status(struct mwl_priv *priv,
 	}
 }
 
-#if defined(CPTCFG_MAC80211_MESH) || defined(CONFIG_MAC80211_MESH)
-static inline bool pcie_rx_process_mesh_amsdu(struct mwl_priv *priv,
-					     struct sk_buff *skb,
-					     struct ieee80211_rx_status *status)
-{
-	struct ieee80211_hdr *wh;
-	struct mwl_sta *sta_info;
-	struct ieee80211_sta *sta;
-	u8 *qc;
-	int wh_len;
-	int len;
-	u8 pad;
-	u8 *data;
-	u16 frame_len;
-	struct sk_buff *newskb;
-
-	wh = (struct ieee80211_hdr *)skb->data;
-
-	spin_lock_bh(&priv->sta_lock);
-	list_for_each_entry(sta_info, &priv->sta_list, list) {
-		sta = container_of((void *)sta_info, struct ieee80211_sta,
-				   drv_priv[0]);
-		if (ether_addr_equal(sta->addr, wh->addr2)) {
-			if (!sta_info->is_mesh_node) {
-				spin_unlock_bh(&priv->sta_lock);
-				return false;
-			}
-		}
-	}
-	spin_unlock_bh(&priv->sta_lock);
-
-	qc = ieee80211_get_qos_ctl(wh);
-	*qc &= ~IEEE80211_QOS_CTL_A_MSDU_PRESENT;
-
-	wh_len = ieee80211_hdrlen(wh->frame_control);
-	len = wh_len;
-	data = skb->data;
-
-	while (len < skb->len) {
-		frame_len = *(u8 *)(data + len + ETH_HLEN - 1) |
-			(*(u8 *)(data + len + ETH_HLEN - 2) << 8);
-
-		if ((len + ETH_HLEN + frame_len) > skb->len)
-			break;
-
-		newskb = dev_alloc_skb(wh_len + frame_len);
-		if (!newskb)
-			break;
-
-		ether_addr_copy(wh->addr3, data + len);
-		ether_addr_copy(wh->addr4, data + len + ETH_ALEN);
-		memcpy(newskb->data, wh, wh_len);
-		memcpy(newskb->data + wh_len, data + len + ETH_HLEN, frame_len);
-		skb_put(newskb, wh_len + frame_len);
-
-		pad = ((ETH_HLEN + frame_len) % 4) ?
-			(4 - (ETH_HLEN + frame_len) % 4) : 0;
-		len += (ETH_HLEN + frame_len + pad);
-		if (len < skb->len)
-			status->flag |= RX_FLAG_AMSDU_MORE;
-		else
-			status->flag &= ~RX_FLAG_AMSDU_MORE;
-		memcpy(IEEE80211_SKB_RXCB(newskb), status, sizeof(*status));
-		ieee80211_rx(priv->hw, newskb);
-	}
-
-	dev_kfree_skb_any(skb);
-
-	return true;
-}
-#endif
-
 static inline int pcie_rx_refill(struct mwl_priv *priv,
 				 struct pcie_rx_hndl *rx_hndl)
 {
@@ -514,14 +442,6 @@ void pcie_rx_recv(unsigned long data)
 			if (!memcmp(_data, eapol, sizeof(eapol)))
 				*qc |= 7;
 
-#if defined(CPTCFG_MAC80211_MESH) || defined(CONFIG_MAC80211_MESH)
-			if ((mwl_vif && mwl_vif->type == NL80211_IFTYPE_MESH_POINT &&
-			     *qc & IEEE80211_QOS_CTL_A_MSDU_PRESENT) &&
-			     ieee80211_has_a4(wh->frame_control)) {
-				if (pcie_rx_process_mesh_amsdu(priv, prx_skb, status))
-					goto out;
-			}
-#endif
 		}
 
 		if (ieee80211_is_probe_req(wh->frame_control) &&

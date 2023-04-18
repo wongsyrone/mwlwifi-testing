@@ -123,6 +123,7 @@ static int mwl_mac80211_start(struct ieee80211_hw *hw)
 	rc = mwl_fwcmd_set_wmm_mode(hw, true);
 	if (rc)
 		goto fwcmd_fail;
+	priv->wmm_enabled = true;
 	rc = mwl_fwcmd_ht_guard_interval(hw, GUARD_INTERVAL_AUTO);
 	if (rc)
 		goto fwcmd_fail;

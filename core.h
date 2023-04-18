@@ -318,6 +318,7 @@ struct mwl_priv {
 	bool radio_short_preamble;
 	bool wmm_enabled;
 	struct ieee80211_tx_queue_params wmm_params[SYSADPT_TX_WMM_QUEUES];
+	int level_threshold;
 
 	struct work_struct account_handle;
 

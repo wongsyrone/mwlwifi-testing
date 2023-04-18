@@ -815,11 +815,8 @@ void pcie_tx_skbs(unsigned long data)
 
 	spin_lock_bh(&pcie_priv->tx_desc_lock);
 	while (num--) {
-		while (skb_queue_len(&pcie_priv->txq[num]) > 0) {
-			if (!pcie_tx_available(priv, num))
-				break;
-
-			tx_skb = skb_dequeue(&pcie_priv->txq[num]);
+		while (pcie_tx_available(priv, num) &&
+		      (tx_skb = skb_dequeue(&pcie_priv->txq[num])) != NULL) {
 			if (!tx_skb)
 				continue;
 

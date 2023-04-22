@@ -33,6 +33,29 @@
 #define DHCPRELEASE     7
 #define DHCPINFORM      8
 
+static inline bool mwl_is_crypted(struct ieee80211_hdr *wh)
+{
+	if (!ieee80211_has_protected(wh->frame_control))
+		return false;
+
+	/* FW delivers WEP Shared Auth frame with Protected Bit set and
+	 * encrypted payload. However in case of PMF it delivers decrypted
+	 * frames with Protected Bit set.
+	 */
+	if (ieee80211_is_auth(wh->frame_control))
+		return false;
+
+	/* qca99x0 based FW delivers broadcast or multicast management frames
+	 * (ex: group privacy action frames in mesh) as encrypted payload.
+	 */
+	if (is_multicast_ether_addr(ieee80211_get_DA(wh))&&
+	    ieee80211_is_mgmt(wh->frame_control))
+		return false;
+
+	return true;
+}
+
+
 static inline int utils_tid_to_ac(u8 tid)
 {
 	switch (tid) {

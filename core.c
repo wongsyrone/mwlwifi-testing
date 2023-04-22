@@ -1007,6 +1007,9 @@ struct ieee80211_hw *mwl_alloc_hw(int bus_type,
 	priv->use_short_preamble = false;
 	priv->disable_2g = false;
 	priv->disable_5g = false;
+	priv->ra_aid = 1;
+	priv->ba_aid = 1;
+	priv->debug_rx = 0;
 	priv->tx_amsdu = true;
 	priv->hif.bus = bus_type;
 	priv->hif.ops = ops;

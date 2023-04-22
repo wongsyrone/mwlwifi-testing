@@ -354,6 +354,7 @@ struct mwl_priv {
 	u32 ra_tx_attempt[2][6];
 
 	bool debug_ampdu;
+	bool debug_rx;
 };
 
 struct beacon_info {

@@ -243,76 +243,6 @@ static inline void pcie_rx_status(struct mwl_priv *priv,
 	}
 }
 
-static inline bool pcie_rx_process_mesh_amsdu(struct mwl_priv *priv,
-					     struct sk_buff *skb,
-					     struct ieee80211_rx_status *status)
-{
-	struct ieee80211_hdr *wh;
-	struct mwl_sta *sta_info;
-	struct ieee80211_sta *sta;
-	u8 *qc;
-	int wh_len;
-	int len;
-	u8 pad;
-	u8 *data;
-	u16 frame_len;
-	struct sk_buff *newskb;
-
-	wh = (struct ieee80211_hdr *)skb->data;
-
-	spin_lock_bh(&priv->sta_lock);
-	list_for_each_entry(sta_info, &priv->sta_list, list) {
-		sta = container_of((void *)sta_info, struct ieee80211_sta,
-				   drv_priv[0]);
-		if (ether_addr_equal(sta->addr, wh->addr2)) {
-			if (!sta_info->is_mesh_node) {
-				spin_unlock_bh(&priv->sta_lock);
-				return false;
-			}
-		}
-	}
-	spin_unlock_bh(&priv->sta_lock);
-
-	qc = ieee80211_get_qos_ctl(wh);
-	*qc &= ~IEEE80211_QOS_CTL_A_MSDU_PRESENT;
-
-	wh_len = ieee80211_hdrlen(wh->frame_control);
-	len = wh_len;
-	data = skb->data;
-
-	while (len < skb->len) {
-		frame_len = *(u8 *)(data + len + ETH_HLEN - 1) |
-			(*(u8 *)(data + len + ETH_HLEN - 2) << 8);
-
-		if ((len + ETH_HLEN + frame_len) > skb->len)
-			break;
-
-		newskb = dev_alloc_skb(wh_len + frame_len);
-		if (!newskb)
-			break;
-
-		ether_addr_copy(wh->addr3, data + len);
-		ether_addr_copy(wh->addr4, data + len + ETH_ALEN);
-		memcpy(newskb->data, wh, wh_len);
-		memcpy(newskb->data + wh_len, data + len + ETH_HLEN, frame_len);
-		skb_put(newskb, wh_len + frame_len);
-
-		pad = ((ETH_HLEN + frame_len) % 4) ?
-			(4 - (ETH_HLEN + frame_len) % 4) : 0;
-		len += (ETH_HLEN + frame_len + pad);
-		if (len < skb->len)
-			status->flag |= RX_FLAG_AMSDU_MORE;
-		else
-			status->flag &= ~RX_FLAG_AMSDU_MORE;
-		memcpy(IEEE80211_SKB_RXCB(newskb), status, sizeof(*status));
-		ieee80211_rx(priv->hw, newskb);
-	}
-
-	dev_kfree_skb_any(skb);
-
-	return true;
-}
-
 static inline int pcie_rx_refill(struct mwl_priv *priv,
 				 struct pcie_rx_hndl *rx_hndl)
 {
@@ -324,8 +254,11 @@ static inline int pcie_rx_refill(struct mwl_priv *priv,
 
 	rx_hndl->psk_buff = dev_alloc_skb(desc->rx_buf_size);
 
-	if (!rx_hndl->psk_buff)
+	if (!rx_hndl->psk_buff) {
+		if(priv->debug_rx)
+			wiphy_debug(priv->hw->wiphy, "-ENOMEM\n");
 		return -ENOMEM;
+	}
 
 	skb_reserve(rx_hndl->psk_buff, PCIE_MIN_BYTES_HEADROOM);
 
@@ -388,15 +321,10 @@ void pcie_rx_recv(unsigned long data)
 	struct pcie_priv *pcie_priv = priv->hif.priv;
 	struct pcie_desc_data *desc;
 	struct pcie_rx_hndl *curr_hndl;
-	int work_done = 0;
 	struct sk_buff *prx_skb = NULL;
 	int pkt_len;
 	struct ieee80211_rx_status *status;
-	struct mwl_vif *mwl_vif = NULL;
 	struct ieee80211_hdr *wh;
-	u8 *_data;
-	u8 *qc;
-	const u8 eapol[] = {0x88, 0x8e};
 
 	desc = &pcie_priv->desc_data[0];
 	curr_hndl = desc->pnext_rx_hndl;
@@ -408,11 +336,13 @@ void pcie_rx_recv(unsigned long data)
 		return;
 	}
 
-	while ((curr_hndl->pdesc->rx_control == EAGLE_RXD_CTRL_DMA_OWN) &&
-	       (work_done < pcie_priv->recv_limit)) {
+	while (curr_hndl->pdesc->rx_control == EAGLE_RXD_CTRL_DMA_OWN) {
 		prx_skb = curr_hndl->psk_buff;
-		if (!prx_skb)
+		if (!prx_skb) {
+			if(priv->debug_rx)
+				wiphy_debug(hw->wiphy, "!prx_skb\n");
 			goto out;
+		}
 		pci_unmap_single(pcie_priv->pdev,
 				 le32_to_cpu(curr_hndl->pdesc->pphys_buff_data),
 				 desc->rx_buf_size,
@@ -421,12 +351,16 @@ void pcie_rx_recv(unsigned long data)
 
 		if (skb_tailroom(prx_skb) < pkt_len) {
 			dev_kfree_skb_any(prx_skb);
+			if(priv->debug_rx)
+				wiphy_debug(hw->wiphy, "skb_tailroom(prx_skb) < pkt_len\n");
 			goto out;
 		}
 
 		if (curr_hndl->pdesc->channel !=
 		    hw->conf.chandef.chan->hw_value) {
 			dev_kfree_skb_any(prx_skb);
+			if(priv->debug_rx)
+				wiphy_debug(hw->wiphy, "offchanel\n");
 			goto out;
 		}
 
@@ -442,79 +376,43 @@ void pcie_rx_recv(unsigned long data)
 
 		wh = &((struct pcie_dma_data *)prx_skb->data)->wh;
 
-		if (ieee80211_has_protected(wh->frame_control)) {
-			/* Check if hw crypto has been enabled for
-			 * this bss. If yes, set the status flags
-			 * accordingly
-			 */
-			if (ieee80211_has_tods(wh->frame_control)) {
-				mwl_vif = utils_find_vif_bss(priv, wh->addr1);
-				if (!mwl_vif &&
-				    ieee80211_has_a4(wh->frame_control))
-					mwl_vif =
-						utils_find_vif_bss(priv,
-								   wh->addr2);
-			} else {
-				mwl_vif = utils_find_vif_bss(priv, wh->addr2);
+		if (mwl_is_crypted(wh)) {
+			/* When MMIC ERROR is encountered
+			* by the firmware, payload is
+			* dropped and only 32 bytes of
+			* mwlwifi Firmware header is sent
+			* to the host.
+			*
+			* We need to add four bytes of
+			* key information.  In it
+			* MAC80211 expects keyidx set to
+			* 0 for triggering Counter
+			* Measure of MMIC failure.
+			*/
+			if (status->flag & RX_FLAG_MMIC_ERROR) {
+				struct pcie_dma_data *dma_data;
+
+				dma_data = (struct pcie_dma_data *)
+				     prx_skb->data;
+				memset((void *)&dma_data->data, 0, 4);
+				pkt_len += 4;
 			}
 
-			if  ((mwl_vif && mwl_vif->is_hw_crypto_enabled) ||
-			     is_multicast_ether_addr(wh->addr1) ||
-			     (ieee80211_is_mgmt(wh->frame_control) &&
-			     !is_multicast_ether_addr(wh->addr1))) {
-				/* When MMIC ERROR is encountered
-				 * by the firmware, payload is
-				 * dropped and only 32 bytes of
-				 * mwlwifi Firmware header is sent
-				 * to the host.
-				 *
-				 * We need to add four bytes of
-				 * key information.  In it
-				 * MAC80211 expects keyidx set to
-				 * 0 for triggering Counter
-				 * Measure of MMIC failure.
-				 */
-				if (status->flag & RX_FLAG_MMIC_ERROR) {
-					struct pcie_dma_data *dma_data;
-
-					dma_data = (struct pcie_dma_data *)
-					     prx_skb->data;
-					memset((void *)&dma_data->data, 0, 4);
-					pkt_len += 4;
-				}
-
-				if (!ieee80211_is_auth(wh->frame_control)) {
-					if (priv->chip_type != MWL8997)
-						status->flag |=
-							RX_FLAG_IV_STRIPPED |
-							RX_FLAG_DECRYPTED |
-							RX_FLAG_MMIC_STRIPPED;
-					else
-						status->flag |=
-							RX_FLAG_DECRYPTED |
-							RX_FLAG_MMIC_STRIPPED;
-				}
-			}
+			if (priv->chip_type != MWL8997)
+				status->flag |=
+					RX_FLAG_IV_STRIPPED |
+					RX_FLAG_DECRYPTED |
+					RX_FLAG_MMIC_STRIPPED;
+			else
+				status->flag |=
+					RX_FLAG_DECRYPTED |
+					RX_FLAG_MMIC_STRIPPED;
 		}
 
 		skb_put(prx_skb, pkt_len);
 		pcie_rx_remove_dma_header(prx_skb, curr_hndl->pdesc->qos_ctrl);
 
 		wh = (struct ieee80211_hdr *)prx_skb->data;
-
-		if (ieee80211_is_data_qos(wh->frame_control)) {
-			qc = ieee80211_get_qos_ctl(wh);
-			_data = prx_skb->data +
-				ieee80211_hdrlen(wh->frame_control) + 6;
-
-			if (!memcmp(_data, eapol, sizeof(eapol)))
-				*qc |= 7;
-
-			if ((*qc & IEEE80211_QOS_CTL_A_MSDU_PRESENT) && (ieee80211_has_a4(wh->frame_control))) {
-				if (pcie_rx_process_mesh_amsdu(priv, prx_skb, status))
-					goto out;
-			}
-		}
 
 		if (ieee80211_is_probe_req(wh->frame_control) &&
 		    priv->dump_probe)
@@ -526,7 +424,6 @@ out:
 		curr_hndl->pdesc->rx_control = EAGLE_RXD_CTRL_DRIVER_OWN;
 		curr_hndl->pdesc->qos_ctrl = 0;
 		curr_hndl = curr_hndl->pnext;
-		work_done++;
 	}
 
 	desc->pnext_rx_hndl = curr_hndl;

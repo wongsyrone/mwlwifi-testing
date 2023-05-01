@@ -327,32 +327,6 @@ static void core_dump_file(u8 *valbuf, u32 length, u32 region, u32 address,
 	kfree(buf);
 }
 
-static ssize_t mwl_debugfs_debug_read(struct file *file,
-					 char __user *ubuf,
-					 size_t count, loff_t *ppos)
-{
-	struct mwl_priv *priv = (struct mwl_priv *)file->private_data;
-	unsigned long page = get_zeroed_page(GFP_KERNEL);
-	char *p = (char *)page;
-	int len = 0, size = PAGE_SIZE;
-	ssize_t ret;
-
-	if (!p)
-		return -ENOMEM;
-
-	len += scnprintf(p + len, size - len, "xmit_scheduler: %s\n", priv->debug_xmit_scheduler ? "enable" : "disable");
-	len += scnprintf(p + len, size - len, "tx_skb: %s\n", priv->debug_tx_skb ? "enable" : "disable");
-	len += scnprintf(p + len, size - len, "pfu: %s\n", priv->debug_tx_done ? "enable" : "disable");
-	len += scnprintf(p + len, size - len, "txpower: %s\n", priv->debug_txpower ? "enable" : "disable");
-	len += scnprintf(p + len, size - len, "ampdu: %s\n", priv->debug_ampdu ? "enable" : "disable");
-	len += scnprintf(p + len, size - len, "rx: %s\n", priv->debug_rx ? "enable" : "disable");
-
-	ret = simple_read_from_buffer(ubuf, count, ppos, p, len);
-	free_page(page);
-
-	return ret;
-}
-
 static ssize_t mwl_debugfs_info_read(struct file *file, char __user *ubuf,
 				     size_t count, loff_t *ppos)
 {
@@ -2215,139 +2189,6 @@ err:
 	return ret;
 }
 
-static ssize_t mwl_debugfs_debug_xmit_scheduler_write(struct file *file,
-					  const char __user *ubuf,
-					  size_t count, loff_t *ppos)
-{
-	struct mwl_priv *priv = (struct mwl_priv *)file->private_data;
-	unsigned long addr = get_zeroed_page(GFP_KERNEL);
-	char *buf = (char *)addr;
-	size_t buf_size = min_t(size_t, count, PAGE_SIZE - 1);
-	int value;
-	ssize_t ret;
-
-	if (!buf)
-		return -ENOMEM;
-
-	if (copy_from_user(buf, ubuf, buf_size)) {
-		ret = -EFAULT;
-		goto err;
-	}
-
-	if (kstrtoint(buf, 0, &value)) {
-		ret = -EINVAL;
-		goto err;
-	}
-
-	priv->debug_xmit_scheduler = value ? true : false;
-
-	ret = count;
-
-err:
-	free_page(addr);
-	return ret;
-}
-
-static ssize_t mwl_debugfs_debug_tx_skb_write(struct file *file,
-					  const char __user *ubuf,
-					  size_t count, loff_t *ppos)
-{
-	struct mwl_priv *priv = (struct mwl_priv *)file->private_data;
-	unsigned long addr = get_zeroed_page(GFP_KERNEL);
-	char *buf = (char *)addr;
-	size_t buf_size = min_t(size_t, count, PAGE_SIZE - 1);
-	int value;
-	ssize_t ret;
-
-	if (!buf)
-		return -ENOMEM;
-
-	if (copy_from_user(buf, ubuf, buf_size)) {
-		ret = -EFAULT;
-		goto err;
-	}
-
-	if (kstrtoint(buf, 0, &value)) {
-		ret = -EINVAL;
-		goto err;
-	}
-
-	priv->debug_tx_skb = value ? true : false;
-
-	ret = count;
-
-err:
-	free_page(addr);
-	return ret;
-}
-
-static ssize_t mwl_debugfs_debug_tx_done_write(struct file *file,
-					  const char __user *ubuf,
-					  size_t count, loff_t *ppos)
-{
-	struct mwl_priv *priv = (struct mwl_priv *)file->private_data;
-	unsigned long addr = get_zeroed_page(GFP_KERNEL);
-	char *buf = (char *)addr;
-	size_t buf_size = min_t(size_t, count, PAGE_SIZE - 1);
-	int value;
-	ssize_t ret;
-
-	if (!buf)
-		return -ENOMEM;
-
-	if (copy_from_user(buf, ubuf, buf_size)) {
-		ret = -EFAULT;
-		goto err;
-	}
-
-	if (kstrtoint(buf, 0, &value)) {
-		ret = -EINVAL;
-		goto err;
-	}
-
-	priv->debug_tx_done = value ? true : false;
-
-	ret = count;
-
-err:
-	free_page(addr);
-	return ret;
-}
-
-static ssize_t mwl_debugfs_debug_txpower_write(struct file *file,
-					  const char __user *ubuf,
-					  size_t count, loff_t *ppos)
-{
-	struct mwl_priv *priv = (struct mwl_priv *)file->private_data;
-	unsigned long addr = get_zeroed_page(GFP_KERNEL);
-	char *buf = (char *)addr;
-	size_t buf_size = min_t(size_t, count, PAGE_SIZE - 1);
-	int value;
-	ssize_t ret;
-
-	if (!buf)
-		return -ENOMEM;
-
-	if (copy_from_user(buf, ubuf, buf_size)) {
-		ret = -EFAULT;
-		goto err;
-	}
-
-	if (kstrtoint(buf, 0, &value)) {
-		ret = -EINVAL;
-		goto err;
-	}
-
-	priv->debug_txpower = value ? true : false;
-
-	ret = count;
-
-err:
-	free_page(addr);
-	return ret;
-}
-
-MWLWIFI_DEBUGFS_FILE_READ_OPS(debug);
 MWLWIFI_DEBUGFS_FILE_READ_OPS(info);
 MWLWIFI_DEBUGFS_FILE_READ_OPS(tx_status);
 MWLWIFI_DEBUGFS_FILE_READ_OPS(rx_status);
@@ -2376,10 +2217,6 @@ MWLWIFI_DEBUGFS_FILE_WRITE_OPS(mcast_cts);
 MWLWIFI_DEBUGFS_FILE_WRITE_OPS(wmmedcaap);
 MWLWIFI_DEBUGFS_FILE_WRITE_OPS(debug_ampdu);
 MWLWIFI_DEBUGFS_FILE_WRITE_OPS(debug_rx);
-MWLWIFI_DEBUGFS_FILE_WRITE_OPS(debug_xmit_scheduler);
-MWLWIFI_DEBUGFS_FILE_WRITE_OPS(debug_tx_skb);
-MWLWIFI_DEBUGFS_FILE_WRITE_OPS(debug_tx_done);
-MWLWIFI_DEBUGFS_FILE_WRITE_OPS(debug_txpower);
 
 void mwl_debugfs_init(struct ieee80211_hw *hw)
 {
@@ -2401,12 +2238,6 @@ void mwl_debugfs_init(struct ieee80211_hw *hw)
 	MWLWIFI_DEBUGFS_ADD_FILE(stnid);
 	MWLWIFI_DEBUGFS_ADD_FILE(device_pwrtbl);
 	MWLWIFI_DEBUGFS_ADD_FILE(txpwrlmt);
-	MWLWIFI_DEBUGFS_ADD_FILE(debug_xmit_scheduler);
-	MWLWIFI_DEBUGFS_ADD_FILE(debug_tx_done);
-	MWLWIFI_DEBUGFS_ADD_FILE(debug_tx_skb);
-	MWLWIFI_DEBUGFS_ADD_FILE(debug);
-	MWLWIFI_DEBUGFS_ADD_FILE(debug_txpower);
-	MWLWIFI_DEBUGFS_ADD_FILE(debug_ampdu);
 	MWLWIFI_DEBUGFS_ADD_FILE(tx_amsdu);
 	MWLWIFI_DEBUGFS_ADD_FILE(dump_hostcmd);
 	MWLWIFI_DEBUGFS_ADD_FILE(dump_probe);

@@ -440,9 +440,6 @@ static inline void pcie_tx_skb(struct mwl_priv *priv, int desc_num,
 	/* make sure all the memory transactions done by cpu were completed */
 	wmb();	/*Data Memory Barrier*/
 
-	if (priv->debug_tx_skb)
-		wiphy_debug(priv->hw->wiphy,"tx_skb [%d] tx_skb:%p\n", desc_num, tx_skb);
-
 	if (priv->chip_type == MWL8997) {
 		u32 wrindx;
 		struct pcie_data_buf *data_buf;
@@ -727,8 +724,6 @@ static void pcie_non_pfu_tx_done(struct mwl_priv *priv)
 				cpu_to_le32(EAGLE_TXD_STATUS_IDLE);
 			tx_hndl->psk_buff = NULL;
 			wmb(); /*Data Memory Barrier*/
-			if (priv->debug_tx_done)
-				wiphy_debug(priv->hw->wiphy,"tx_done [%d] done_skb:%p\n", num, done_skb);
 
 			skb_get(done_skb);
 

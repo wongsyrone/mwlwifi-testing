@@ -1020,7 +1020,9 @@ void pcie_tx_xmit(struct ieee80211_hw *hw,
 				if (skb_queue_len(&pcie_priv->txq[index]) > pcie_priv->txq_limit)
 					ieee80211_stop_queue(hw, ac);
 
-				skb = pcie_tx_do_amsdu(priv, index, skb, tx_info);
+				if (priv->chip_type != MWL8864)
+					skb = pcie_tx_do_amsdu(priv, index, skb, tx_info);
+
 				if (skb) {
 					skb_queue_tail(&pcie_priv->txq[index], skb);
 					tasklet_schedule(&pcie_priv->tx_task);

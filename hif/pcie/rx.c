@@ -419,6 +419,14 @@ void pcie_rx_recv(unsigned long data)
 		    priv->dump_probe)
 			wiphy_info(hw->wiphy, "Probe Req: %pM\n", wh->addr2);
 
+		/* hw will not decryption robust managment frame for IEEE80211w
+		* so here we should set it back to undecrypted for IEEE80211w
+		* frame, and mac80211 sw will help to decrypt it.
+		*/
+		if(status->flag & RX_FLAG_DECRYPTED
+		   && _ieee80211_is_robust_mgmt_frame(wh))
+			status->flag &= ~RX_FLAG_DECRYPTED;
+
 		if(status->flag & RX_FLAG_DECRYPTED) {
 			monitor_skb = skb_copy(prx_skb, GFP_ATOMIC);
 			if (monitor_skb) {

@@ -357,6 +357,7 @@ struct mwl_priv {
 
 	bool debug_ampdu;
 	bool debug_rx;
+	bool debug_nullfunc;
 };
 
 struct beacon_info {
